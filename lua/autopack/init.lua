@@ -114,17 +114,22 @@ local function make_loader(spec)
 			pcall(vim.api.nvim_del_user_command, name)
 		end
 
-		-- (3) Optional pre-load hook: runs BEFORE packadd. This is where
+		-- (3) Remove our BufRead autocmds (patterns trigger).
+		for _, id in ipairs(spec._autocmds) do
+			pcall(vim.api.nvim_del_autocmd, id)
+		end
+
+		-- (4) Optional pre-load hook: runs BEFORE packadd. This is where
 		--     Vimscript plugins want their vim.g.* options (read at source time).
 		if type(spec.init) == "function" then
 			spec.init()
 		end
 
-		-- (4) Load the real plugin. Sources its plugin/ files; enough for an
+		-- (5) Load the real plugin. Sources its plugin/ files; enough for an
 		--     old Vimscript plugin to define its commands/maps. No require() here.
 		vim.cmd("packadd " .. spec.name)
 
-		-- (5) Optional post-load config:
+		-- (6) Optional post-load config:
 		--       config = function -> called as-is (do your own require().setup{})
 		--       config = table    -> require(module).setup(table)
 		--       setup  = true     -> require(module).setup()
@@ -148,7 +153,7 @@ local function make_loader(spec)
 			end
 		end
 
-		-- (6) Replay the trigger now that the real plugin is loaded.
+		-- (7) Replay the trigger now that the real plugin is loaded.
 		replay()
 	end
 end
@@ -165,12 +170,14 @@ end
 --   opts.setup    (boolean, opt)       force require(module).setup()
 --   opts.keys     (list, opt)          "lhs" or { lhs=.., mode=.. } entries
 --   opts.commands (list, opt)          command-name strings
+--   opts.patterns (list, opt)          file glob patterns (BufRead trigger)
 function M.register(opts)
 	assert(type(opts) == "table" and type(opts.name) == "string",
 		"autopack.register: `name` is required")
 
 	opts._keymaps = {}
 	opts._commands = {}
+	opts._autocmds = {}
 
 	local loader = make_loader(opts)
 
@@ -231,6 +238,19 @@ function M.register(opts)
 			range = true,
 			desc = "autopack stub -> " .. opts.name,
 		})
+	end
+
+	-- BufRead stubs: one-shot autocmds keyed on file glob patterns.
+	for _, pattern in ipairs(opts.patterns or {}) do
+		local id = vim.api.nvim_create_autocmd("BufRead", {
+			pattern = pattern,
+			once = true,
+			callback = function()
+				loader(function() end)
+			end,
+			desc = "autopack stub BufRead -> " .. opts.name,
+		})
+		table.insert(opts._autocmds, id)
 	end
 
 	return opts
