@@ -98,7 +98,7 @@ local function make_loader(spec)
 	local loaded = false
 
 	-- Called with a `replay` callback that re-triggers the original key/command.
-	return function(replay)
+	local function load(replay)
 		if loaded then
 			return
 		end
@@ -156,6 +156,8 @@ local function make_loader(spec)
 		-- (7) Replay the trigger now that the real plugin is loaded.
 		replay()
 	end
+
+	return load, function() return loaded end
 end
 
 -- ---------------------------------------------------------------------------
@@ -179,7 +181,7 @@ function M.register(opts)
 	opts._commands = {}
 	opts._autocmds = {}
 
-	local loader = make_loader(opts)
+	local loader, is_loaded = make_loader(opts)
 
 	-- Key stubs.
 	for _, raw in ipairs(opts.keys or {}) do
@@ -241,17 +243,43 @@ function M.register(opts)
 	end
 
 	-- BufRead stubs: one-shot autocmds keyed on file glob patterns.
+	-- During startup, defer loading to VimEnter (UI not ready yet).
+	-- After startup, load synchronously on BufRead.
+	local bufread_fired = false
+
+	local function bufread_loader()
+		loader(function() end)
+	end
+
 	for _, pattern in ipairs(opts.patterns or {}) do
 		local id = vim.api.nvim_create_autocmd("BufRead", {
 			pattern = pattern,
 			once = true,
 			callback = function()
-				loader(function() end)
+				bufread_fired = true
+				if vim.v.vim_did_enter == 0 then
+					-- Still in startup: defer to VimEnter.
+					vim.schedule(bufread_loader)
+				else
+					bufread_loader()
+				end
 			end,
 			desc = "autopack stub BufRead -> " .. opts.name,
 		})
 		table.insert(opts._autocmds, id)
 	end
+
+	-- Fallback: if a matching buffer is already open at VimEnter, load now.
+	local vimenter_id = vim.api.nvim_create_autocmd("VimEnter", {
+		once = true,
+		callback = function()
+			if bufread_fired and not is_loaded() then
+				bufread_loader()
+			end
+		end,
+		desc = "autopack fallback VimEnter -> " .. opts.name,
+	})
+	table.insert(opts._autocmds, vimenter_id)
 
 	return opts
 end
