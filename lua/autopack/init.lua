@@ -31,141 +31,214 @@
 -- 	},
 -- })
 
+
+-- ~/.config/nvim/lua/autopack/init.lua   (Windows: ~/AppData/Local/nvim/lua/autopack/init.lua)
+--
+-- autopack: lazy-load optional ('opt') packages on first key/command use.
+--
+-- Register a plugin together with the keys and/or commands that should trigger
+-- it. Until one of those fires, the plugin is NOT loaded. On first trigger,
+-- autopack removes its stub mappings/commands, runs your optional pre-load
+-- `init`, `packadd`s the real plugin, runs your optional post-load `config`,
+-- and finally replays the exact key/command you used.
+--
+-- The plugin MUST live in a 'pack/*/opt/<name>/' directory (opt, not start).
+
 local M = {}
 
--- Builds the shared loader for one registration.
--- `spec` carries the plugin name, the config table, and the lists of
--- stub keymaps / commands so the loader can tear them down again.
+-- ---------------------------------------------------------------------------
+-- helpers
+-- ---------------------------------------------------------------------------
+
+-- Best-effort Lua module name from a packadd dir name (gitsigns.nvim -> gitsigns).
+local function default_module(name)
+	return (name:gsub("%.nvim$", ""):gsub("%.vim$", ""))
+end
+
+-- Expand <leader>/<localleader> the same way :map does. nvim_replace_termcodes
+-- does NOT expand them, so replaying a raw "<leader>x" lhs would feed literal
+-- text instead of the key the real mapping is registered under.
+local function expand_leader(lhs)
+	local leader = vim.g.mapleader
+	if leader == nil then leader = "\\" end
+	local localleader = vim.g.maplocalleader
+	if localleader == nil then localleader = "\\" end
+	return (lhs:gsub("<(%a+)>", function(word)
+		local w = word:lower()
+		if w == "leader" then return leader end
+		if w == "localleader" then return localleader end
+		-- returning nil keeps the original <...> for nvim_replace_termcodes
+	end))
+end
+
+-- Feed keys through the typeahead buffer. `mode` follows nvim_feedkeys:
+--   "m" = allow remapping (needed to trigger the plugin's real mapping)
+--   "n" = no remapping    (used for replaying an Ex command line)
+local function feed(keys, mode)
+	vim.api.nvim_feedkeys(
+		vim.api.nvim_replace_termcodes(keys, true, false, true),
+		mode,
+		false
+	)
+end
+
+-- Normalize a `keys` entry into { lhs = <string>, mode = <string> }.
+local function parse_key(k)
+	if type(k) == "table" then
+		return { lhs = k.lhs or k[1], mode = k.mode or "n" }
+	end
+	return { lhs = k, mode = "n" }
+end
+
+-- ---------------------------------------------------------------------------
+-- loader (one-shot, shared by all of a plugin's stubs)
+-- ---------------------------------------------------------------------------
+
 local function make_loader(spec)
 	local loaded = false
 
-	-- `replay` re-triggers whatever invoked the stub (a key or a command).
+	-- Called with a `replay` callback that re-triggers the original key/command.
 	return function(replay)
-		if not loaded then
-			loaded = true
+		if loaded then
+			return
+		end
+		loaded = true
 
-			-- (step 3a) Remove every stub keymap we created in step 2.
-			for _, km in ipairs(spec._keymaps) do
-				pcall(vim.keymap.del, km.mode, km.lhs)
+		-- (1) Remove our stub mappings so they no longer intercept the key.
+		for _, km in ipairs(spec._keymaps) do
+			pcall(vim.keymap.del, km.mode, km.lhs)
+		end
+
+		-- (2) Remove our stub user-commands.
+		for _, name in ipairs(spec._commands) do
+			pcall(vim.api.nvim_del_user_command, name)
+		end
+
+		-- (3) Optional pre-load hook: runs BEFORE packadd. This is where
+		--     Vimscript plugins want their vim.g.* options (read at source time).
+		if type(spec.init) == "function" then
+			spec.init()
+		end
+
+		-- (4) Load the real plugin. Sources its plugin/ files; enough for an
+		--     old Vimscript plugin to define its commands/maps. No require() here.
+		vim.cmd("packadd " .. spec.name)
+
+		-- (5) Optional post-load config:
+		--       config = function -> called as-is (do your own require().setup{})
+		--       config = table    -> require(module).setup(table)
+		--       setup  = true     -> require(module).setup()
+		--     `module` defaults to the plugin name minus a trailing .nvim/.vim.
+		local c = spec.config
+		if type(c) == "function" then
+			c()
+		elseif c ~= nil or spec.setup then
+			local module = spec.module or default_module(spec.name)
+			local ok, mod = pcall(require, module)
+			if not ok then
+				error(string.format(
+					"autopack: require('%s') failed for plugin '%s'.\n"
+						.. "If this is a Vimscript plugin it has no Lua module: drop "
+						.. "`config`/`setup`/`module` and use `init` for vim.g.* settings.\n%s",
+					module, spec.name, mod
+				))
 			end
-
-			-- (step 3a) Remove every stub user-command we created in step 2.
-			for _, name in ipairs(spec._commands) do
-				pcall(vim.api.nvim_del_user_command, name)
-			end
-
-			-- (step 3b) Load the real plugin from an optional package.
-			vim.cmd("packadd " .. spec.name)
-
-			-- (step 3c) Initialize via require(name).setup(config).
-			-- Pass the config table when present; otherwise call setup()
-			-- with no argument.
-			local plugin = require(spec.name)
-			if spec.config ~= nil then
-				plugin.setup(spec.config)
-			else
-				plugin.setup()
+			if type(mod) == "table" and type(mod.setup) == "function" then
+				mod.setup(type(c) == "table" and c or nil)
 			end
 		end
 
-		-- (step 3d) Invoke the exact shortcut/command that hit the stub.
+		-- (6) Replay the trigger now that the real plugin is loaded.
 		replay()
 	end
 end
 
--- Re-runs the original command line as faithfully as possible.
-local function replay_command(cmd, a)
-	local line = ""
+-- ---------------------------------------------------------------------------
+-- public API
+-- ---------------------------------------------------------------------------
 
-	-- Preserve a range (e.g. `:'<,'>Foo` or `:10Foo`).
-	if a.range == 2 then
-		line = a.line1 .. "," .. a.line2
-	elseif a.range == 1 then
-		line = tostring(a.line1)
-	end
-
-	-- Preserve modifiers like `:vertical`, `:silent`, ... when available.
-	if a.mods and a.mods ~= "" then
-		line = (line == "" and "" or line) .. a.mods .. " "
-	end
-
-	line = line .. cmd .. (a.bang and "!" or "")
-
-	-- Preserve the raw argument string (keeps quoting/spacing intact).
-	if a.args and a.args ~= "" then
-		line = line .. " " .. a.args
-	end
-
-	vim.cmd(line)
-end
-
---- Register a lazily-loaded plugin.
---- @param opts table
----   opts.name      string            -- (1) plugin name (used by `packadd` and `require`)
----   opts.config    table|nil         -- (2) dict passed to require(name).setup(config)
----   opts.keys      table|nil         -- (3) list of key combinations
----   opts.commands  table|nil         -- (4) list of commands
----
---- `keys` entries may be a plain lhs string (normal mode) or a table:
----   { "<leader>gg", mode = "n" }  /  { "<C-x>", mode = { "n", "i" } }
+-- Register one plugin.
+--   opts.name     (string, required)   dir under pack/*/opt/  = packadd target
+--   opts.init     (function, opt)      runs BEFORE packadd (set vim.g.* here)
+--   opts.config   (function|table,opt) runs AFTER  packadd (see make_loader)
+--   opts.module   (string, opt)        Lua module for the table-config form
+--   opts.setup    (boolean, opt)       force require(module).setup()
+--   opts.keys     (list, opt)          "lhs" or { lhs=.., mode=.. } entries
+--   opts.commands (list, opt)          command-name strings
 function M.register(opts)
-	opts = opts or {}
-	assert(opts.name, "autopack: `name` (plugin name) is required")
+	assert(type(opts) == "table" and type(opts.name) == "string",
+		"autopack.register: `name` is required")
 
-	local spec = {
-		name = opts.name,
-		config = opts.config,
-		_keymaps = {},
-		_commands = {},
-	}
+	opts._keymaps = {}
+	opts._commands = {}
 
-	local load = make_loader(spec)
+	local loader = make_loader(opts)
 
-	-- (step 2) Map every key combination to the stub.
-	for _, key in ipairs(opts.keys or {}) do
-		local lhs, mode
-		if type(key) == "table" then
-			lhs = key[1] or key.lhs
-			mode = key.mode or "n"
-		else
-			lhs, mode = key, "n"
-		end
-
-		-- Remember it so the loader can delete it later.
-		table.insert(spec._keymaps, { mode = mode, lhs = lhs })
-
-		vim.keymap.set(mode, lhs, function()
-			load(function()
-				-- Feed the *same* keys with remapping enabled ("m"),
-				-- so the real plugin's freshly-installed mapping fires.
-				local keys = vim.api.nvim_replace_termcodes(lhs, true, false, true)
-				vim.api.nvim_feedkeys(keys, "m", false)
+	-- Key stubs.
+	for _, raw in ipairs(opts.keys or {}) do
+		local k = parse_key(raw)
+		table.insert(opts._keymaps, k)
+		vim.keymap.set(k.mode, k.lhs, function()
+			loader(function()
+				local lhs = expand_leader(k.lhs)
+				-- Defer the replay: feeding the key synchronously while we're
+				-- still executing the stub mapping causes the re-sent key not to
+				-- resolve to the freshly-loaded mapping. vim.schedule runs it on
+				-- the next tick, after this mapping fully unwinds.
+				vim.schedule(function()
+					if vim.tbl_isempty(vim.fn.maparg(lhs, k.mode, false, true)) then
+						vim.notify(
+							("autopack: '%s' loaded but found no %s-mode mapping for %s; "
+								.. "replaying anyway. If nothing happens, the plugin likely "
+								.. "exposes a <Plug> mapping you must bind yourself.")
+								:format(opts.name, k.mode, k.lhs),
+							vim.log.levels.WARN
+						)
+					end
+					feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
+				end)
 			end)
-		end, { desc = "autopack stub → " .. opts.name })
+		end, { desc = "autopack stub -> " .. opts.name })
 	end
 
-	-- (step 2) Map every command to the stub.
+	-- Command stubs.
 	for _, cmd in ipairs(opts.commands or {}) do
-		table.insert(spec._commands, cmd)
-
+		table.insert(opts._commands, cmd)
 		vim.api.nvim_create_user_command(cmd, function(a)
-			load(function()
-				-- The real command now exists; re-run the original invocation.
-				replay_command(cmd, a)
+			loader(function()
+				-- Rebuild the exact command line: {mods} {range}{cmd}{bang} {args}
+				local line = ""
+				if a.range == 2 then
+					line = a.line1 .. "," .. a.line2
+				elseif a.range == 1 then
+					line = tostring(a.line1)
+				end
+				if a.mods and a.mods ~= "" then
+					line = a.mods .. " " .. line
+				end
+				line = line .. cmd
+				if a.bang then
+					line = line .. "!"
+				end
+				if a.args and a.args ~= "" then
+					line = line .. " " .. a.args
+				end
+				feed(":" .. line .. "\r", "n")
 			end)
 		end, {
 			nargs = "*",
 			bang = true,
 			range = true,
-			desc = "autopack stub → " .. opts.name,
+			desc = "autopack stub -> " .. opts.name,
 		})
 	end
+
+	return opts
 end
 
---- Register many plugins at once.
---- @param specs table  -- a list of opts tables (same shape as M.register)
+-- Register many plugins at once.
 function M.register_all(specs)
-	for _, opts in ipairs(specs or {}) do
+	for _, opts in ipairs(specs) do
 		M.register(opts)
 	end
 end
