@@ -10,7 +10,7 @@
 -- 	},
 -- 	commands = { "Gitsigns" },               -- (4) commands
 -- })
--- 
+--
 -- require("autoload").register_all({
 -- 	{
 -- 		name = "gitsigns",
