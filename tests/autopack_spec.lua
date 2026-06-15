@@ -365,6 +365,155 @@ tap.ok(err15 ~= nil and err15:find("name"),
 tap.ok(err15 ~= nil and err15:find("spec%.src"),
 	"error message mentions 'spec.src'")
 
+
+-- ---------------------------------------------------------------------------
+-- Test 18: update() respects dependencies - deps added before dependents
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {
+	["lib-a"] = { src = "https://github.com/user/lib-a" },
+	["lib-b"] = { src = "https://github.com/user/lib-b", dependencies = { "lib-a" } },
+	["main"] = { src = "https://github.com/user/main", dependencies = { "lib-b" } },
+}
+autopack.update(nil)
+
+tap.ok(#pack_add_calls == 3,
+	"update() with deps calls vim.pack.add() 3 times")
+
+-- Extract ordered src list
+local dep_order = {}
+for _, call in ipairs(pack_add_calls) do
+	for _, spec in ipairs(call) do
+		table.insert(dep_order, spec.src)
+	end
+end
+
+-- lib-a must come before lib-b, lib-b before main
+local function find_idx(list, val)
+	for i, v in ipairs(list) do
+		if v == val then return i end
+	end
+	return nil
+end
+
+local idx_a = find_idx(dep_order, "https://github.com/user/lib-a")
+local idx_b = find_idx(dep_order, "https://github.com/user/lib-b")
+local idx_m = find_idx(dep_order, "https://github.com/user/main")
+
+tap.ok(idx_a ~= nil and idx_b ~= nil and idx_a < idx_b,
+	"lib-a added before lib-b")
+tap.ok(idx_b ~= nil and idx_m ~= nil and idx_b < idx_m,
+	"lib-b added before main")
+
+-- ---------------------------------------------------------------------------
+-- Test 19: update() with unregistered dependency errors
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {
+	["main"] = { src = "https://github.com/user/main", dependencies = { "missing-lib" } },
+}
+
+local ok18, err18 = pcall(autopack.update, nil)
+tap.ok(not ok18,
+	"update() with unregistered dependency raises an error")
+tap.ok(err18 ~= nil and err18:find("missing%-lib"),
+	"error message mentions the missing dependency name")
+
+-- ---------------------------------------------------------------------------
+-- Test 20: update() with circular dependency errors
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {
+	["a"] = { src = "https://github.com/user/a", dependencies = { "b" } },
+	["b"] = { src = "https://github.com/user/b", dependencies = { "a" } },
+}
+
+local ok19, err19 = pcall(autopack.update, nil)
+tap.ok(not ok19,
+	"update() with circular dependency raises an error")
+tap.ok(err19 ~= nil and err19:find("circular"),
+	"error message mentions 'circular'")
+
+-- ---------------------------------------------------------------------------
+-- Test 21: update() skips already-added dependencies
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {
+	["lib-a"] = { src = "https://github.com/user/lib-a" },
+	["lib-b"] = { src = "https://github.com/user/lib-b", dependencies = { "lib-a" } },
+}
+-- Update only lib-b; lib-a should be auto-added as dependency
+autopack.update("lib-b")
+
+-- lib-a must be added (as dep), lib-b must be added
+local dep_srcs = {}
+for _, call in ipairs(pack_add_calls) do
+	for _, spec in ipairs(call) do
+		table.insert(dep_srcs, spec.src)
+	end
+end
+
+tap.ok(find_idx(dep_srcs, "https://github.com/user/lib-a") ~= nil,
+	"dependency lib-a was auto-added when updating lib-b")
+local dep_a_idx = find_idx(dep_srcs, "https://github.com/user/lib-a")
+local dep_b_idx = find_idx(dep_srcs, "https://github.com/user/lib-b")
+tap.ok(dep_a_idx ~= nil and dep_b_idx ~= nil and dep_a_idx < dep_b_idx,
+	"dependency lib-a added before lib-b")
+
+-- ---------------------------------------------------------------------------
+-- Test 22: register() accepts a plain string argument (URL shorthand)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local result = autopack.register("https://github.com/user/cool-plugin")
+
+tap.ok(type(result) == "table",
+	"register(string) returns a table")
+tap.ok(result.name == "cool-plugin",
+	"register(string) derives name from URL")
+tap.ok(result.spec ~= nil and result.spec.src == "https://github.com/user/cool-plugin",
+	"register(string) sets spec.src to the URL")
+tap.ok(autopack._registry["cool-plugin"] ~= nil,
+	"register(string) stores entry in _registry")
+
+-- ---------------------------------------------------------------------------
+-- Test 23: register() accepts spec as string in opts table
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local result2 = autopack.register({ spec = "https://github.com/user/another-plugin.git" })
+
+tap.ok(type(result2) == "table",
+	"register({spec=string}) returns a table")
+tap.ok(result2.spec ~= nil and result2.spec.src == "https://github.com/user/another-plugin.git",
+	"register({spec=string}) normalizes spec to {src=...}")
+tap.ok(result2.name == "another-plugin",
+	"register({spec=string}) derives name from URL")
+tap.ok(autopack._registry["another-plugin"] ~= nil,
+	"register({spec=string}) stores in registry")
+
+-- ---------------------------------------------------------------------------
+-- Test 24: register() with string spec creates no stubs
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+autopack.register("https://github.com/user/no-stubs-plugin")
+
+tap.ok(#user_commands == 0,
+	"register(string URL) creates no user command stubs")
+tap.ok(#autocmds == 0,
+	"register(string URL) creates no autocmd stubs")
+
 -- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------

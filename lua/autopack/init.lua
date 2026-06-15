@@ -187,8 +187,10 @@ end
 M.derive_name = derive_name
 
 -- Register one plugin.
+--   opts          (table|string)       if string, treated as { spec = { src = opts } }
 --   opts.name     (string, required unless spec.src given)  packadd target
---   opts.spec     (table,  opt)        vim.pack.add() spec, stored in _registry
+--   opts.spec     (table|string, opt)  vim.pack.add() spec; string -> { src = string }
+--   opts.dependencies (list, opt)      plugin names to add before this one
 --   opts.init     (function, opt)      runs BEFORE packadd (set vim.g.* here)
 --   opts.config   (function|table,opt) runs AFTER  packadd (see make_loader)
 --   opts.module   (string, opt)        Lua module for the table-config form
@@ -196,8 +198,21 @@ M.derive_name = derive_name
 --   opts.keys     (list, opt)          "lhs" or { lhs=.., mode=.. } entries
 --   opts.commands (list, opt)          command-name strings
 --   opts.patterns (list, opt)          file glob patterns (BufRead trigger)
+-- Normalize opts: accept string URL as shorthand for { spec = { src = url } }.
+local function normalize_opts(opts)
+	if type(opts) == "string" then
+		opts = { spec = { src = opts } }
+	end
+	assert(type(opts) == "table", "autopack.register: opts must be a table or URL string")
+	-- Normalize spec: string -> { src = string }
+	if type(opts.spec) == "string" then
+		opts.spec = { src = opts.spec }
+	end
+	return opts
+end
+
 function M.register(opts)
-	assert(type(opts) == "table", "autopack.register: opts must be a table")
+	opts = normalize_opts(opts)
 
 	if not opts.name and opts.spec and opts.spec.src then
 		opts.name = derive_name(opts.spec.src)
@@ -303,16 +318,19 @@ function M.register(opts)
 	end
 
 	-- Fallback: if a matching buffer is already open at VimEnter, load now.
-	local vimenter_id = vim.api.nvim_create_autocmd("VimEnter", {
-		once = true,
-		callback = function()
-			if bufread_fired and not is_loaded() then
-				bufread_loader()
-			end
-		end,
-		desc = "autopack fallback VimEnter -> " .. opts.name,
-	})
-	table.insert(opts._autocmds, vimenter_id)
+	-- Only needed when BufRead patterns are registered.
+	if opts.patterns and #opts.patterns > 0 then
+		local vimenter_id = vim.api.nvim_create_autocmd("VimEnter", {
+			once = true,
+			callback = function()
+				if bufread_fired and not is_loaded() then
+					bufread_loader()
+				end
+			end,
+			desc = "autopack fallback VimEnter -> " .. opts.name,
+		})
+		table.insert(opts._autocmds, vimenter_id)
+	end
 
 	return opts
 end
@@ -328,6 +346,39 @@ end
 -- :Autopackupdate  –  install/update all (or named) registered packs
 -- ---------------------------------------------------------------------------
 
+-- Resolve dependency order for a plugin name.
+-- Returns an ordered list of specs (dependencies first, then the plugin itself).
+-- Errors on unregistered deps or circular dependency chains.
+--   name: plugin name to resolve
+--   registry: { name -> spec } table
+--   added: set of names already scheduled for addition (dedup across batch)
+--   visiting: set of names in current call chain (cycle detection)
+local function resolve_deps(name, registry, added, visiting)
+	if added[name] then
+		return {}  -- already scheduled; skip duplicate
+	end
+	local spec = registry[name]
+	if spec == nil then
+		error("autopack: dependency '" .. name .. "' is not registered")
+	end
+	if visiting[name] then
+		error("autopack: circular dependency detected involving '" .. name .. "'")
+	end
+	visiting[name] = true
+	local result = {}
+	for _, dep in ipairs(spec.dependencies or {}) do
+		for _, s in ipairs(resolve_deps(dep, registry, added, visiting)) do
+			table.insert(result, s)
+		end
+	end
+	if not added[name] then
+		added[name] = true
+		table.insert(result, spec)
+	end
+	visiting[name] = nil
+	return result
+end
+
 -- Handler shared by M.update() and the :Autopackupdate command.
 -- names: list of plugin-name strings (empty = all registered).
 -- Uses vim.pack.add() which both installs new packs and updates existing ones.
@@ -337,19 +388,28 @@ local function update_handler(names)
 			vim.notify("Call register() first. Nothing to do.")
 			return
 		end
-		for _, spec in pairs(M._registry) do
+		local added = {}
+		local all_specs = {}
+		for name, _ in pairs(M._registry) do
+			for _, s in ipairs(resolve_deps(name, M._registry, added, {})) do
+				table.insert(all_specs, s)
+			end
+		end
+		for _, spec in ipairs(all_specs) do
 			vim.pack.add({ spec })
 		end
 	else
-		local specs = {}
+		local added = {}
+		local all_specs = {}
 		for _, name in ipairs(names) do
-			local spec = M._registry[name]
-			if spec == nil then
+			if M._registry[name] == nil then
 				error("autopack: unknown plugin '" .. name .. "'")
 			end
-			table.insert(specs, spec)
+			for _, s in ipairs(resolve_deps(name, M._registry, added, {})) do
+				table.insert(all_specs, s)
+			end
 		end
-		for _, spec in ipairs(specs) do
+		for _, spec in ipairs(all_specs) do
 			vim.pack.add({ spec })
 		end
 	end
