@@ -59,6 +59,22 @@ local function default_module(name)
 	return (name:gsub("%.nvim$", ""):gsub("%.vim$", ""))
 end
 
+-- Derive a plugin name from a vim.pack.add() spec src URL.
+--   "https://github.com/user/gitsigns.nvim" -> "gitsigns.nvim"
+--   "https://github.com/user/repo.git"       -> "repo"
+--   "git@github.com:user/repo.git"           -> "repo"
+local function derive_name(src)
+	-- Strip query strings, fragments, and trailing slashes before pattern matching.
+	src = src:gsub("[?#].*$", ""):gsub("/+$", "")
+	-- SSH URLs: git@host:user/repo.git  -> user/repo.git
+	-- Standard URLs: https://host/path   -> /path
+	local path = src:match("@[^:]+:(.+)$") or src:match("/([^/]+)$") or src
+	-- Get the last path component (for SSH paths like user/repo.git -> repo.git)
+	local name = path:match("([^/]+)$") or path
+	-- Strip trailing .git
+	return (name:gsub("%.git$", ""))
+end
+
 -- Expand <leader>/<localleader> the same way :map does. nvim_replace_termcodes
 -- does NOT expand them, so replaying a raw "<leader>x" lhs would feed literal
 -- text instead of the key the real mapping is registered under.
@@ -168,8 +184,10 @@ end
 -- public API
 -- ---------------------------------------------------------------------------
 
+M.derive_name = derive_name
+
 -- Register one plugin.
---   opts.name     (string, required)   dir under pack/*/opt/  = packadd target
+--   opts.name     (string, required unless spec.src given)  packadd target
 --   opts.spec     (table,  opt)        vim.pack.add() spec, stored in _registry
 --   opts.init     (function, opt)      runs BEFORE packadd (set vim.g.* here)
 --   opts.config   (function|table,opt) runs AFTER  packadd (see make_loader)
@@ -179,8 +197,14 @@ end
 --   opts.commands (list, opt)          command-name strings
 --   opts.patterns (list, opt)          file glob patterns (BufRead trigger)
 function M.register(opts)
-	assert(type(opts) == "table" and type(opts.name) == "string",
-		"autopack.register: `name` is required")
+	assert(type(opts) == "table", "autopack.register: opts must be a table")
+
+	if not opts.name and opts.spec and opts.spec.src then
+		opts.name = derive_name(opts.spec.src)
+	end
+
+	assert(type(opts.name) == "string",
+		"autopack.register: `name` is required (or provide `spec.src` to derive it)")
 
 	if opts.spec then
 		M._registry[opts.name] = opts.spec

@@ -280,6 +280,92 @@ tap.ok(#pack_add_calls == 1,
 	"update('gitsigns') with single string works")
 
 -- ---------------------------------------------------------------------------
+-- Test 10: derive_name with HTTPS URL
+-- ---------------------------------------------------------------------------
+
+local dn = autopack.derive_name
+
+tap.ok(dn("https://github.com/lewis6991/gitsigns.nvim") == "gitsigns.nvim",
+	"derive_name extracts name from HTTPS URL")
+
+-- ---------------------------------------------------------------------------
+-- Test 11: derive_name strips .git suffix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/repo.git") == "repo",
+	"derive_name strips trailing .git")
+
+-- ---------------------------------------------------------------------------
+-- Test 12: derive_name handles SSH URLs
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("git@github.com:user/repo.git") == "repo",
+	"derive_name handles SSH URL and strips .git")
+
+-- ---------------------------------------------------------------------------
+-- Test 13: derive_name strips trailing slash
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/repo/") == "repo",
+	"derive_name strips trailing slash")
+
+-- ---------------------------------------------------------------------------
+-- Test 14: derive_name strips query parameters
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/repo?branch=main") == "repo",
+	"derive_name strips query parameters")
+
+-- ---------------------------------------------------------------------------
+-- Test 15: register() with spec.src but no name derives the name
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local derived = autopack.register({
+	spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+	config = { signcolumn = true },
+})
+
+tap.ok(derived.name == "gitsigns.nvim",
+	"register() derives name from spec.src when name is absent")
+
+-- ---------------------------------------------------------------------------
+-- Test 16: register() with both name and spec.src preserves name
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local preserved = autopack.register({
+	name = "my-gitsigns",
+	spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+})
+
+tap.ok(preserved.name == "my-gitsigns",
+	"register() preserves explicit name when spec.src is also given")
+
+-- ---------------------------------------------------------------------------
+-- Test 17: register() with neither name nor spec.src errors
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local ok15, err15 = pcall(autopack.register, {
+	config = { signcolumn = true },
+})
+
+tap.ok(not ok15,
+	"register() without name or spec.src raises an error")
+
+tap.ok(err15 ~= nil and err15:find("name"),
+	"error message mentions 'name'")
+tap.ok(err15 ~= nil and err15:find("spec%.src"),
+	"error message mentions 'spec.src'")
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 

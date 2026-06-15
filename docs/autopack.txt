@@ -109,9 +109,17 @@ register_all({specs})                               *autopack-register_all*
 ==============================================================================
 Specs                                              *autopack-specs*
 
-name (string, required)                           *autopack-spec-name*
+name (string, required unless spec.src given)     *autopack-spec-name*
   The directory name under `pack/*/opt/`. This is the argument passed to
   |:packadd|.
+
+  Can be omitted if |autopack-spec-spec| has a `src` field; the name will be
+  derived automatically from the URL. For example: >
+    require("autopack").register({
+        spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+        -- name is automatically set to "gitsigns.nvim"
+    })
+<
 
 init (function, optional)                         *autopack-spec-init*
   A function that runs BEFORE |:packadd|. Use this to set |vim.g| variables
