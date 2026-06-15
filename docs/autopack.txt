@@ -23,6 +23,7 @@ Specs ............................ |autopack-specs|
   keys ........................... |autopack-spec-keys|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
+  dependencies ................... |autopack-spec-dependencies|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   register_all() ................. |autopack-example-register_all|
@@ -177,15 +178,51 @@ patterns (list, optional)                         *autopack-spec-patterns*
   plugin. During startup (before |VimEnter|), loading is deferred to
   |VimEnter|. After startup, loading happens synchronously on BufRead.
 
-spec (table, optional)                              *autopack-spec-spec*
+dependencies (list, optional)               *autopack-spec-dependencies*
+  A list of plugin names that must be added before this plugin. Dependencies
+  are resolved recursively: if A depends on B and B depends on C, the
+  addition order will be C, B, A.
+
+  Each dependency name must be registered via |autopack-register| (or
+  |autopack-register_all|). If a dependency is not registered, an error is
+  raised. Circular dependencies also raise an error.
+
+  Example: >
+    require("autopack").register_all({
+        {
+            name = "plenary",
+            spec = { src = "https://github.com/nvim-lua/plenary.nvim" },
+        },
+        {
+            name = "telescope",
+            spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
+            dependencies = { "plenary" },
+            keys = { "<leader>ff" },
+        },
+    })
+<
+  When |:Autopackupdate| is invoked (or `update()` is called), plugins are
+  added in dependency order. Updating "telescope" above will first add
+  "plenary", then "telescope".
+
+spec (table|string, optional)                         *autopack-spec-spec*
   A pack specification in |vim.pack.add()| format. When provided, the spec
   is stored in autopack's internal registry for use with the |:Autopackupdate|
   command.
+
+  Can be a table (with `src` and other fields) or a plain URL string, which
+  is interpreted as `{ src = <url> }`.
 
   Example: >
     require("autopack").register({
         name = "gitsigns",
         spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+        config = { signcolumn = true },
+        keys = { "<leader>gs" },
+    })
+    -- Or as a shorthand string:
+    require("autopack").register({
+        spec = "https://github.com/lewis6991/gitsigns.nvim",
         config = { signcolumn = true },
         keys = { "<leader>gs" },
     })
