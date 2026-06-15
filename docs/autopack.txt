@@ -12,7 +12,7 @@ Behavior ......................... |autopack-behavior|
   BufRead patterns .............. |autopack-bufread-patterns|
   VimEnter fallback ............. |autopack-vimenter-fallback|
 Usage ............................ |autopack-usage|
-  register_all() ................. |autopack-register_all|
+  register() ................. |autopack-register|
 Specs ............................ |autopack-specs|
   name ........................... |autopack-spec-name|
   init ........................... |autopack-spec-init|
@@ -26,7 +26,7 @@ Specs ............................ |autopack-specs|
   dependencies ................... |autopack-spec-dependencies|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
-  register_all() ................. |autopack-example-register_all|
+  register() ................. |autopack-example-register|
 
 ==============================================================================
 Introduction                                    *autopack-introduction*
@@ -43,15 +43,10 @@ to your |init.lua|: >
     vim.pack.add({
         { src = "https://github.com/tomtom/autopack_nvim" },
     })
+    require("autopack").register({ ... })
 <
-This downloads the plugin into your `pack/` directory. autopack itself lives
-under `opt/` and must be loaded with |:packadd| before calling `require()`: >
-    vim.pack.add({
-        { src = "https://github.com/tomtom/autopack_nvim" },
-    })
-    vim.cmd.packadd("autopack_nvim")
-    require("autopack").register_all({ ... })
-<
+|vim.pack.add()| both downloads and loads the plugin, so no separate
+|:packadd| call is needed.
 
 The plugin must be installed in a `pack/*/opt/<name>/` directory (the `opt`
 subdirectory, not `start`). autopack calls |:packadd| when a registered trigger
@@ -103,8 +98,8 @@ VimEnter fallback                         *autopack-vimenter-fallback*
 ==============================================================================
 Usage                                                *autopack-usage*
 
-register_all({specs})                               *autopack-register_all*
-  Register multiple plugins at once. {specs} is a list of tables, each
+register({specs})                               *autopack-register*
+  Register one or more plugins. {specs} is a list of tables, each
   with the fields described in |autopack-specs|.
 
 ==============================================================================
@@ -117,8 +112,7 @@ name (string, required unless spec.src given)     *autopack-spec-name*
   Can be omitted if |autopack-spec-spec| has a `src` field; the name will be
   derived automatically from the URL. For example: >
     require("autopack").register({
-        spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-        -- name is automatically set to "gitsigns.nvim"
+        { spec = { src = "https://github.com/lewis6991/gitsigns.nvim" } },
     })
 <
 
@@ -184,11 +178,11 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   addition order will be C, B, A.
 
   Each dependency name must be registered via |autopack-register| (or
-  |autopack-register_all|). If a dependency is not registered, an error is
+  |autopack-register|). If a dependency is not registered, an error is
   raised. Circular dependencies also raise an error.
 
   Example: >
-    require("autopack").register_all({
+    require("autopack").register({
         {
             name = "plenary",
             spec = { src = "https://github.com/nvim-lua/plenary.nvim" },
@@ -215,16 +209,20 @@ spec (table|string, optional)                         *autopack-spec-spec*
 
   Example: >
     require("autopack").register({
-        name = "gitsigns",
-        spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-        config = { signcolumn = true },
-        keys = { "<leader>gs" },
+        {
+            name = "gitsigns",
+            spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+            config = { signcolumn = true },
+            keys = { "<leader>gs" },
+        },
     })
     -- Or as a shorthand string:
     require("autopack").register({
-        spec = "https://github.com/lewis6991/gitsigns.nvim",
-        config = { signcolumn = true },
-        keys = { "<leader>gs" },
+        {
+            spec = "https://github.com/lewis6991/gitsigns.nvim",
+            config = { signcolumn = true },
+            keys = { "<leader>gs" },
+        },
     })
 <
   The spec is a table that may contain any field accepted by |vim.pack.add()|,
@@ -263,22 +261,31 @@ spec (table|string, optional)                         *autopack-spec-spec*
 ==============================================================================
 Examples                                          *autopack-examples*
 
-register_all()                               *autopack-example-register_all*
+register()                               *autopack-example-register*
 >
-    require("autopack").register_all({
+    require("autopack").register({
+        "https://github.com/nvim-tree/nvim-web-devicons",
+        {
+            spec = "https://github.com/ibhagwan/fzf-lua", 
+            dependencies = { "nvim-web-devicons", },
+            commands = { "FzfLua", },
+        },
         {
             name = "gitsigns",
+            spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
             config = { signcolumn = true },
             keys = { "<leader>gs" },
             commands = { "Gitsigns" },
         },
         {
             name = "fugitive",
+            spec = { src = "https://github.com/tpope/vim-fugitive" },
             keys = { "<leader>gg" },
             commands = { "Git", "Gdiffsplit" },
         },
         {
             name = "telescope",
+            spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
             config = { defaults = { layout_strategy = "flex" } },
             keys = { "<leader>ff", "<leader>fg" },
             commands = { "Telescope" },

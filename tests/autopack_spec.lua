@@ -123,9 +123,11 @@ reset_mocks()
 autopack._registry = {} -- ensure clean state
 
 autopack.register({
-	name = "gitsigns",
-	spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-	config = { signcolumn = true },
+	{
+		name = "gitsigns",
+		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+		config = { signcolumn = true },
+	},
 })
 
 tap.ok(autopack._registry["gitsigns"] ~= nil,
@@ -144,21 +146,23 @@ reset_mocks()
 autopack._registry = {}
 
 autopack.register({
-	name = "no-spec-plugin",
-	config = {},
+	{
+		name = "no-spec-plugin",
+		config = {},
+	},
 })
 
 tap.ok(autopack._registry["no-spec-plugin"] == nil,
 	"register() without spec does not store in _registry")
 
 -- ---------------------------------------------------------------------------
--- Test 4: register_all() propagates spec to registry
+-- Test 4: register() propagates spec to registry
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-autopack.register_all({
+autopack.register({
 	{
 		name = "plugin-a",
 		spec = { src = "https://github.com/a/a.nvim" },
@@ -174,11 +178,11 @@ autopack.register_all({
 })
 
 tap.ok(autopack._registry["plugin-a"] ~= nil,
-	"register_all() stores spec for plugin-a")
+	"register() stores spec for plugin-a")
 tap.ok(autopack._registry["plugin-b"] ~= nil,
-	"register_all() stores spec for plugin-b")
+	"register() stores spec for plugin-b")
 tap.ok(autopack._registry["plugin-c"] == nil,
-	"register_all() does not store entry without spec")
+	"register() does not store entry without spec")
 
 -- ---------------------------------------------------------------------------
 -- Test 5: :Autopackupdate with no registered plugins shows message
@@ -352,18 +356,34 @@ tap.ok(dn("https://github.com/user/foo") == "foo",
 	"derive_name leaves name unchanged when no suffix")
 
 -- ---------------------------------------------------------------------------
--- Test 20: register() with spec.src but no name derives the name
+-- Test 20: derive_name strips nvim- prefix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/nvim-telescope/telescope.nvim") == "telescope",
+	"derive_name strips nvim- prefix and .nvim suffix")
+
+-- ---------------------------------------------------------------------------
+-- Test 21: derive_name strips vim- prefix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/tpope/vim-fugitive") == "fugitive",
+	"derive_name strips vim- prefix")
+
+-- ---------------------------------------------------------------------------
+-- Test 22: register() with spec.src but no name derives the name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
 local derived = autopack.register({
-	spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-	config = { signcolumn = true },
+	{
+		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+		config = { signcolumn = true },
+	},
 })
 
-tap.ok(derived.name == "gitsigns",
+tap.ok(derived[1].name == "gitsigns",
 	"register() derives name from spec.src when name is absent")
 
 -- ---------------------------------------------------------------------------
@@ -374,11 +394,13 @@ reset_mocks()
 autopack._registry = {}
 
 local preserved = autopack.register({
-	name = "my-gitsigns",
-	spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+	{
+		name = "my-gitsigns",
+		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+	},
 })
 
-tap.ok(preserved.name == "my-gitsigns",
+tap.ok(preserved[1].name == "my-gitsigns",
 	"register() preserves explicit name when spec.src is also given")
 
 -- ---------------------------------------------------------------------------
@@ -389,7 +411,7 @@ reset_mocks()
 autopack._registry = {}
 
 local ok15, err15 = pcall(autopack.register, {
-	config = { signcolumn = true },
+	{ config = { signcolumn = true } },
 })
 
 tap.ok(not ok15,
@@ -506,16 +528,16 @@ tap.ok(dep_a_idx ~= nil and dep_b_idx ~= nil and dep_a_idx < dep_b_idx,
 reset_mocks()
 autopack._registry = {}
 
-local result = autopack.register("https://github.com/user/cool-plugin")
+local result = autopack.register({ "https://github.com/user/cool-plugin" })
 
 tap.ok(type(result) == "table",
-	"register(string) returns a table")
-tap.ok(result.name == "cool-plugin",
-	"register(string) derives name from URL")
-tap.ok(result.spec ~= nil and result.spec.src == "https://github.com/user/cool-plugin",
-	"register(string) sets spec.src to the URL")
+	"register({\"https://...\"}) returns a table")
+tap.ok(result[1].name == "cool-plugin",
+	"register({\"https://...\"}) derives name from URL")
+tap.ok(result[1].spec ~= nil and result[1].spec.src == "https://github.com/user/cool-plugin",
+	"register({\"https://...\"}) sets spec.src to the URL")
 tap.ok(autopack._registry["cool-plugin"] ~= nil,
-	"register(string) stores entry in _registry")
+	"register({\"https://...\"}) stores entry in _registry")
 
 -- ---------------------------------------------------------------------------
 -- Test 23: register() accepts spec as string in opts table
@@ -524,16 +546,16 @@ tap.ok(autopack._registry["cool-plugin"] ~= nil,
 reset_mocks()
 autopack._registry = {}
 
-local result2 = autopack.register({ spec = "https://github.com/user/another-plugin.git" })
+local result2 = autopack.register({ { spec = "https://github.com/user/another-plugin.git" } })
 
 tap.ok(type(result2) == "table",
-	"register({spec=string}) returns a table")
-tap.ok(result2.spec ~= nil and result2.spec.src == "https://github.com/user/another-plugin.git",
-	"register({spec=string}) normalizes spec to {src=...}")
-tap.ok(result2.name == "another-plugin",
-	"register({spec=string}) derives name from URL")
+	"register({{spec=string}}) returns a table")
+tap.ok(result2[1].spec ~= nil and result2[1].spec.src == "https://github.com/user/another-plugin.git",
+	"register({{spec=string}}) normalizes spec to {src=...}")
+tap.ok(result2[1].name == "another-plugin",
+	"register({{spec=string}}) derives name from URL")
 tap.ok(autopack._registry["another-plugin"] ~= nil,
-	"register({spec=string}) stores in registry")
+	"register({{spec=string}}) stores in registry")
 
 -- ---------------------------------------------------------------------------
 -- Test 24: register() with string spec creates no stubs
@@ -542,12 +564,12 @@ tap.ok(autopack._registry["another-plugin"] ~= nil,
 reset_mocks()
 autopack._registry = {}
 
-autopack.register("https://github.com/user/no-stubs-plugin")
+autopack.register({ "https://github.com/user/no-stubs-plugin" })
 
 tap.ok(#user_commands == 0,
-	"register(string URL) creates no user command stubs")
+	"register({\"https://...\"}) creates no user command stubs")
 tap.ok(#autocmds == 0,
-	"register(string URL) creates no autocmd stubs")
+	"register({\"https://...\"}) creates no autocmd stubs")
 
 -- ---------------------------------------------------------------------------
 -- Done

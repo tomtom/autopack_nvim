@@ -1,49 +1,3 @@
--- require("autopack").register({
--- 	name = "gitsigns",                       -- (1) packadd + require target
--- 	config = {                               -- (2) passed to require("gitsigns").setup(config)
--- 		signcolumn = true,
--- 		numhl = false,
--- 	},
--- 	keys = {                                 -- (3) key combinations
--- 		"<leader>gs",
--- 		{ "<C-g>", mode = { "n", "i" } },
--- 	},
--- 	commands = { "Gitsigns" },               -- (4) commands
--- })
---
--- require("autoload").register_all({
--- 	{
--- 		name = "gitsigns",
--- 		config = { signcolumn = true },
--- 		keys = { "<leader>gs" },
--- 		commands = { "Gitsigns" },
--- 	},
--- 	{
--- 		name = "fugitive",
--- 		keys = { "<leader>gg" },
--- 		commands = { "Git", "Gdiffsplit" },
--- 	},
--- 	{
--- 		name = "telescope",
--- 		config = { defaults = { layout_strategy = "flex" } },
--- 		keys = { "<leader>ff", "<leader>fg" },
--- 		commands = { "Telescope" },
--- 	},
--- })
-
-
--- ~/.config/nvim/lua/autopack/init.lua   (Windows: ~/AppData/Local/nvim/lua/autopack/init.lua)
---
--- autopack: lazy-load optional ('opt') packages on first key/command use.
---
--- Register a plugin together with the keys and/or commands that should trigger
--- it. Until one of those fires, the plugin is NOT loaded. On first trigger,
--- autopack removes its stub mappings/commands, runs your optional pre-load
--- `init`, `packadd`s the real plugin, runs your optional post-load `config`,
--- and finally replays the exact key/command you used.
---
--- The plugin MUST live in a 'pack/*/opt/<name>/' directory (opt, not start).
-
 local M = {}
 
 -- Registry of { name → spec } for :Autopackupdate.
@@ -72,7 +26,7 @@ local function derive_name(src)
 	-- Get the last path component (for SSH paths like user/repo.git -> repo.git)
 	local name = path:match("([^/]+)$") or path
 	-- Strip trailing .git
-	return (name:gsub("%.git$", ""):gsub("%.nvim$", ""):gsub("%.vim$", ""):gsub("_nvim$", ""):gsub("_vim$", ""))
+	return (name:gsub("%.git$", ""):gsub("%.nvim$", ""):gsub("%.vim$", ""):gsub("_nvim$", ""):gsub("_vim$", ""):gsub("^nvim%-", ""):gsub("^vim%-", ""))
 end
 
 -- Expand <leader>/<localleader> the same way :map does. nvim_replace_termcodes
@@ -186,18 +140,7 @@ end
 
 M.derive_name = derive_name
 
--- Register one plugin.
---   opts          (table|string)       if string, treated as { spec = { src = opts } }
---   opts.name     (string, required unless spec.src given)  packadd target
---   opts.spec     (table|string, opt)  vim.pack.add() spec; string -> { src = string }
---   opts.dependencies (list, opt)      plugin names to add before this one
---   opts.init     (function, opt)      runs BEFORE packadd (set vim.g.* here)
---   opts.config   (function|table,opt) runs AFTER  packadd (see make_loader)
---   opts.module   (string, opt)        Lua module for the table-config form
---   opts.setup    (boolean, opt)       force require(module).setup()
---   opts.keys     (list, opt)          "lhs" or { lhs=.., mode=.. } entries
---   opts.commands (list, opt)          command-name strings
---   opts.patterns (list, opt)          file glob patterns (BufRead trigger)
+-- Internal: register a single plugin. Called by M.register() for each spec.
 -- Normalize opts: accept string URL as shorthand for { spec = { src = url } }.
 local function normalize_opts(opts)
 	if type(opts) == "string" then
@@ -211,7 +154,7 @@ local function normalize_opts(opts)
 	return opts
 end
 
-function M.register(opts)
+local function register_one(opts)
 	opts = normalize_opts(opts)
 
 	if not opts.name and opts.spec and opts.spec.src then
@@ -335,11 +278,13 @@ function M.register(opts)
 	return opts
 end
 
--- Register many plugins at once.
-function M.register_all(specs)
+-- Register one or more plugins. {specs} is a list of plugin specs.
+function M.register(specs)
+	local results = {}
 	for _, opts in ipairs(specs) do
-		M.register(opts)
+		table.insert(results, register_one(opts))
 	end
+	return results
 end
 
 -- ---------------------------------------------------------------------------
