@@ -46,6 +46,10 @@
 
 local M = {}
 
+-- Registry of { name → spec } for :Autopackupdate.
+-- Populated when register() is called with an `opts.spec` field.
+M._registry = {}
+
 -- ---------------------------------------------------------------------------
 -- helpers
 -- ---------------------------------------------------------------------------
@@ -166,6 +170,7 @@ end
 
 -- Register one plugin.
 --   opts.name     (string, required)   dir under pack/*/opt/  = packadd target
+--   opts.spec     (table,  opt)        vim.pack.add() spec, stored in _registry
 --   opts.init     (function, opt)      runs BEFORE packadd (set vim.g.* here)
 --   opts.config   (function|table,opt) runs AFTER  packadd (see make_loader)
 --   opts.module   (string, opt)        Lua module for the table-config form
@@ -176,6 +181,10 @@ end
 function M.register(opts)
 	assert(type(opts) == "table" and type(opts.name) == "string",
 		"autopack.register: `name` is required")
+
+	if opts.spec then
+		M._registry[opts.name] = opts.spec
+	end
 
 	opts._keymaps = {}
 	opts._commands = {}
@@ -290,6 +299,54 @@ function M.register_all(specs)
 		M.register(opts)
 	end
 end
+
+-- ---------------------------------------------------------------------------
+-- :Autopackupdate  –  install/update all (or named) registered packs
+-- ---------------------------------------------------------------------------
+
+-- Handler shared by M.update() and the :Autopackupdate command.
+-- names: list of plugin-name strings (empty = all registered).
+-- Uses vim.pack.add() which both installs new packs and updates existing ones.
+local function update_handler(names)
+	if vim.tbl_isempty(names) then
+		if vim.tbl_isempty(M._registry) then
+			vim.notify("Call register() first. Nothing to do.")
+			return
+		end
+		for _, spec in pairs(M._registry) do
+			vim.pack.add({ spec })
+		end
+	else
+		local specs = {}
+		for _, name in ipairs(names) do
+			local spec = M._registry[name]
+			if spec == nil then
+				error("autopack: unknown plugin '" .. name .. "'")
+			end
+			table.insert(specs, spec)
+		end
+		for _, spec in ipairs(specs) do
+			vim.pack.add({ spec })
+		end
+	end
+end
+
+--- Update one or more registered packs.
+--- @param names string|string[]  plugin name or list of names, or empty for all.
+function M.update(names)
+	if type(names) == "string" then
+		update_handler({ names })
+	else
+		update_handler(names or {})
+	end
+end
+
+vim.api.nvim_create_user_command("Autopackupdate", function(a)
+	update_handler(a.fargs)
+end, {
+	nargs = "*",
+	desc = "Install/update plugins registered with autopack",
+})
 
 return M
 

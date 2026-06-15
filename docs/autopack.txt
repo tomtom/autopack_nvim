@@ -19,9 +19,11 @@ Specs ............................ |autopack-specs|
   config ......................... |autopack-spec-config|
   module ......................... |autopack-spec-module|
   setup ......................... |autopack-spec-setup|
+  spec ........................... |autopack-spec-spec|
   keys ........................... |autopack-spec-keys|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
+Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   register_all() ................. |autopack-example-register_all|
 
@@ -166,6 +168,52 @@ patterns (list, optional)                         *autopack-spec-patterns*
   When a buffer matching one of the patterns is read, autopack loads the
   plugin. During startup (before |VimEnter|), loading is deferred to
   |VimEnter|. After startup, loading happens synchronously on BufRead.
+
+spec (table, optional)                              *autopack-spec-spec*
+  A pack specification in |vim.pack.add()| format. When provided, the spec
+  is stored in autopack's internal registry for use with the |:Autopackupdate|
+  command.
+
+  Example: >
+    require("autopack").register({
+        name = "gitsigns",
+        spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+        config = { signcolumn = true },
+        keys = { "<leader>gs" },
+    })
+<
+  The spec is a table that may contain any field accepted by |vim.pack.add()|,
+  such as `src`, `host`, `scm`, `branch`, `tag`, `pin`, etc. autopack does
+  not interpret these fields — it passes them through to |vim.pack.add()|
+  when |:Autopackupdate| is invoked.
+
+  |vim.pack.add()| both installs new packs and updates existing ones, so
+  running |:Autopackupdate| ensures all registered plugins are up to date.
+
+==============================================================================
+:Autopackupdate                                 *autopack-Autopackupdate*
+
+  Install or update plugins registered via |autopack-spec-spec|.
+
+  Usage: >
+    :Autopackupdate
+    :Autopackupdate gitsigns
+    :Autopackupdate gitsigns telescope fugitive
+<
+
+  With no arguments, every plugin that was registered with a `spec` field is
+  updated via |vim.pack.add()|. If no plugins have been registered yet, a
+  notification is shown: "Call register() first. Nothing to do."
+
+  With one or more plugin names, only those plugins are updated. If a name
+  does not match any registered plugin, an error is raised.
+
+  This command is created automatically when the autopack module is loaded
+  (i.e. when you `require("autopack")`).
+
+  Note: |vim.pack.add()| both installs new packs and updates existing ones.
+  Running |:Autopackupdate| will install any missing packs and fetch updates
+  for already-installed packs in one go.
 
 ==============================================================================
 Examples                                          *autopack-examples*
