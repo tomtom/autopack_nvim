@@ -341,12 +341,23 @@ function M.update(names)
 	end
 end
 
-vim.api.nvim_create_user_command("Autopackupdate", function(a)
-	update_handler(a.fargs)
-end, {
-	nargs = "*",
-	desc = "Install/update plugins registered with autopack",
-})
+local function register_update_command()
+	vim.api.nvim_create_user_command("Autopackupdate", function(a)
+		update_handler(a.fargs)
+	end, {
+		nargs = "*",
+		desc = "Install/update plugins registered with autopack",
+	})
+end
+
+if vim.v.vim_did_enter == 1 then
+	register_update_command()
+else
+	vim.api.nvim_create_autocmd("VimEnter", {
+		once = true,
+		callback = register_update_command,
+	})
+end
 
 return M
 

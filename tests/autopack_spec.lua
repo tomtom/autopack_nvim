@@ -30,12 +30,14 @@ local pack_add_calls = {}   -- vim.pack.add() invocations
 local notify_calls = {}     -- vim.notify() invocations
 local user_commands = {}    -- nvim_create_user_command invocations
 local autocmds = {}         -- nvim_create_autocmd invocations
+local autocmd_callbacks = {} -- nvim_create_autocmd callbacks for simulation
 
 local function reset_mocks()
 	pack_add_calls = {}
 	notify_calls = {}
 	user_commands = {}
 	autocmds = {}
+	autocmd_callbacks = {}
 end
 
 _G.vim = {
@@ -80,29 +82,30 @@ _G.vim = {
 		end,
 		nvim_create_autocmd = function(event, opts)
 			table.insert(autocmds, { event = event, opts = opts })
+			if opts and opts.callback then
+				table.insert(autocmd_callbacks, { event = event, callback = opts.callback })
+			end
 			return #autocmds
 		end,
 	},
 }
 
 -- ---------------------------------------------------------------------------
--- Load the module (triggers :Autopackupdate command creation)
+-- Load the module (registers Autopackupdate immediately since vim_did_enter == 1)
 -- ---------------------------------------------------------------------------
 
 local autopack = require("autopack")
 
--- Capture command created at module load time before any reset.
-local initial_user_commands = vim.tbl_isempty(user_commands) and {} or user_commands
-
 -- ---------------------------------------------------------------------------
--- Test 1: Autopackupdate command was created at module load time
+-- Test 1: Autopackupdate command is registered immediately when loaded
+--         after VimEnter (vim_did_enter == 1)
 -- ---------------------------------------------------------------------------
 
-tap.ok(#initial_user_commands >= 1,
-	"vim.api.nvim_create_user_command was called at module load")
+tap.ok(#user_commands >= 1,
+	"vim.api.nvim_create_user_command was called during module load")
 
 local found = false
-for _, cmd in ipairs(initial_user_commands) do
+for _, cmd in ipairs(user_commands) do
 	if cmd.name == "Autopackupdate" then
 		found = true
 		tap.ok(cmd.opts.nargs == "*",
@@ -110,7 +113,7 @@ for _, cmd in ipairs(initial_user_commands) do
 		break
 	end
 end
-tap.ok(found, "Autopackupdate user command was created")
+tap.ok(found, "Autopackupdate user command was created immediately (no VimEnter needed)")
 
 -- ---------------------------------------------------------------------------
 -- Test 2: register() with spec stores in registry
