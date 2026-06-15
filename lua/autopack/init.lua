@@ -72,7 +72,7 @@ local function derive_name(src)
 	-- Get the last path component (for SSH paths like user/repo.git -> repo.git)
 	local name = path:match("([^/]+)$") or path
 	-- Strip trailing .git
-	return (name:gsub("%.git$", ""))
+	return (name:gsub("%.git$", ""):gsub("%.nvim$", ""):gsub("%.vim$", ""):gsub("_nvim$", ""):gsub("_vim$", ""))
 end
 
 -- Expand <leader>/<localleader> the same way :map does. nvim_replace_termcodes

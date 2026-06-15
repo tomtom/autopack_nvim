@@ -285,8 +285,8 @@ tap.ok(#pack_add_calls == 1,
 
 local dn = autopack.derive_name
 
-tap.ok(dn("https://github.com/lewis6991/gitsigns.nvim") == "gitsigns.nvim",
-	"derive_name extracts name from HTTPS URL")
+tap.ok(dn("https://github.com/lewis6991/gitsigns.nvim") == "gitsigns",
+	"derive_name strips .nvim suffix from HTTPS URL")
 
 -- ---------------------------------------------------------------------------
 -- Test 11: derive_name strips .git suffix
@@ -317,7 +317,42 @@ tap.ok(dn("https://github.com/user/repo?branch=main") == "repo",
 	"derive_name strips query parameters")
 
 -- ---------------------------------------------------------------------------
--- Test 15: register() with spec.src but no name derives the name
+-- Test 15: derive_name strips .vim suffix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/foo.vim") == "foo",
+	"derive_name strips .vim suffix")
+
+-- ---------------------------------------------------------------------------
+-- Test 16: derive_name strips _nvim suffix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/foo_nvim") == "foo",
+	"derive_name strips _nvim suffix")
+
+-- ---------------------------------------------------------------------------
+-- Test 17: derive_name strips _vim suffix
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/foo_vim") == "foo",
+	"derive_name strips _vim suffix")
+
+-- ---------------------------------------------------------------------------
+-- Test 18: derive_name strips .nvim suffix with hyphenated name
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/foo-bar.nvim") == "foo-bar",
+	"derive_name strips .nvim suffix from hyphenated name")
+
+-- ---------------------------------------------------------------------------
+-- Test 19: derive_name with no suffix leaves name unchanged
+-- ---------------------------------------------------------------------------
+
+tap.ok(dn("https://github.com/user/foo") == "foo",
+	"derive_name leaves name unchanged when no suffix")
+
+-- ---------------------------------------------------------------------------
+-- Test 20: register() with spec.src but no name derives the name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -328,7 +363,7 @@ local derived = autopack.register({
 	config = { signcolumn = true },
 })
 
-tap.ok(derived.name == "gitsigns.nvim",
+tap.ok(derived.name == "gitsigns",
 	"register() derives name from spec.src when name is absent")
 
 -- ---------------------------------------------------------------------------
