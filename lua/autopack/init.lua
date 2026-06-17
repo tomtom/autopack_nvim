@@ -309,6 +309,13 @@ local function register(opts)
 			})
 			table.insert(mod._autocmds, vimenter_id)
 		end
+
+		-- Startup trigger: load right away instead of waiting for a key,
+		-- command, or buffer event. Runs last so it removes the stubs
+		-- created above instead of leaving them dangling.
+		if mod.startup then
+			loader(function() end)
+		end
 	end
 
 	if opts.submodules then

@@ -22,6 +22,7 @@ Specs ............................ |autopack-specs|
   keys ........................... |autopack-spec-keys|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
+  startup ........................ |autopack-spec-startup|
   dependencies ................... |autopack-spec-dependencies|
   submodules ..................... |autopack-spec-submodules|
 Autopackupdate ................ |autopack-Autopackupdate|
@@ -232,6 +233,22 @@ patterns (list, optional)                         *autopack-spec-patterns*
         {
             name = "vim-gitgutter",
             patterns = { "*.gitignore", ".gitconfig" },
+        },
+    })
+<
+
+startup (boolean, optional)                       *autopack-spec-startup*
+  When `true`, loads the plugin (or |autopack-spec-submodules| entry)
+  immediately instead of waiting for a |autopack-spec-keys|,
+  |autopack-spec-commands|, or |autopack-spec-patterns| trigger: runs
+  |:packadd| and |autopack-spec-setup| right away, during |autopack-setup|.
+
+  Example: >
+    require("autopack").setup({
+        {
+            name = "gitsigns.nvim",
+            startup = true,
+            setup = { signcolumn = true },
         },
     })
 <

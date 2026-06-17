@@ -719,6 +719,86 @@ tap.ok(err28 ~= nil and err28:find("submodules"),
 	"submodules: error message mentions 'submodules'")
 
 -- ---------------------------------------------------------------------------
+-- Test 29: register() with `startup` loads immediately (no trigger needed)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local startup_packadd_calls = {}
+local real_cmd29 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	table.insert(startup_packadd_calls, c)
+end)
+
+local required29 = {}
+local real_require29 = require
+_G.require = function(name)
+	table.insert(required29, name)
+	return { setup = function() end }
+end
+
+autopack.setup({
+	{
+		name = "gitsigns.nvim",
+		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+		startup = true,
+		setup = { signcolumn = true },
+	},
+})
+
+tap.ok(#startup_packadd_calls == 1 and startup_packadd_calls[1] == "packadd gitsigns.nvim",
+	"startup: :packadd runs immediately without any trigger")
+tap.ok(required29[1] == "gitsigns",
+	"startup: require() runs immediately with the derived module name")
+
+mock_set(vim, "cmd", real_cmd29)
+_G.require = real_require29
+
+-- ---------------------------------------------------------------------------
+-- Test 30: `startup` on one submodule does not eager-load its siblings
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local required30 = {}
+local real_require30 = require
+_G.require = function(name)
+	table.insert(required30, name)
+	return { setup = function() end }
+end
+
+local minisurround_handler
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	if name == "MiniSurround" then minisurround_handler = handler end
+end)
+
+autopack.setup({
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+		submodules = {
+			["mini.git"] = { startup = true, setup = true },
+			["mini.surround"] = { commands = { "MiniSurround" }, setup = true },
+		},
+	},
+})
+
+tap.ok(required30[1] == "mini.git" and #required30 == 1,
+	"startup: only the submodule with `startup = true` loads eagerly")
+
+minisurround_handler({ args = "", range = 0, bang = false, mods = "" })
+tap.ok(required30[#required30] == "mini.surround",
+	"startup: sibling submodule still loads lazily on its own trigger")
+
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
+_G.require = real_require30
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
