@@ -597,7 +597,7 @@ autopack.setup({
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
 		submodules = {
 			["mini.git"] = { commands = { "MiniGit" } },
-			["mini.surround"] = { keys = { "sa" } },
+			["mini.surround"] = { maps = { "sa" } },
 		},
 	},
 })
@@ -637,7 +637,7 @@ autopack.setup({
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
 		submodules = {
 			["mini.git"] = { commands = { "MiniGit" } },
-			["mini.surround"] = { keys = { "sa" } },
+			["mini.surround"] = { maps = { "sa" } },
 		},
 	},
 })
@@ -853,6 +853,119 @@ tap.ok(call_count32 == 1,
 	"function setup: still runs once even when require() fails")
 
 _G.require = real_require32
+
+-- ---------------------------------------------------------------------------
+-- Test 33: `maps` implicitly stubs normal, insert, and visual-only modes
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local maps_calls33 = {}
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	table.insert(maps_calls33, { mode = mode, lhs = lhs })
+end)
+
+autopack.setup({
+	{
+		name = "telescope.nvim",
+		maps = { "<leader>ff" },
+	},
+})
+
+tap.ok(#maps_calls33 == 1, "maps: stubs exactly one keymap.set call per entry")
+tap.ok(maps_calls33[1].lhs == "<leader>ff", "maps: stubs the given lhs")
+tap.ok(
+	type(maps_calls33[1].mode) == "table"
+		and maps_calls33[1].mode[1] == "n"
+		and maps_calls33[1].mode[2] == "i"
+		and maps_calls33[1].mode[3] == "x",
+	"maps: implicitly stubs normal, insert, and visual-only modes"
+)
+
+mock_set(vim.keymap, "set", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 34: nmaps/imaps/xmaps/vmaps/smaps/omaps/cmaps stub exactly one mode each
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local mode_calls34 = {}
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	table.insert(mode_calls34, { mode = mode, lhs = lhs })
+end)
+
+autopack.setup({
+	{
+		name = "multi-mode-plugin",
+		nmaps = { "<leader>n1" },
+		imaps = { "<leader>i1" },
+		xmaps = { "<leader>x1" },
+		vmaps = { "<leader>v1" },
+		smaps = { "<leader>s1" },
+		omaps = { "<leader>o1" },
+		cmaps = { "<leader>c1" },
+	},
+})
+
+local modes_by_lhs34 = {}
+for _, c in ipairs(mode_calls34) do
+	modes_by_lhs34[c.lhs] = c.mode
+end
+
+tap.ok(#mode_calls34 == 7, "per-mode fields: one keymap.set call per field")
+tap.ok(modes_by_lhs34["<leader>n1"][1] == "n" and #modes_by_lhs34["<leader>n1"] == 1,
+	"nmaps: stubs normal mode only")
+tap.ok(modes_by_lhs34["<leader>i1"][1] == "i" and #modes_by_lhs34["<leader>i1"] == 1,
+	"imaps: stubs insert mode only")
+tap.ok(modes_by_lhs34["<leader>x1"][1] == "x" and #modes_by_lhs34["<leader>x1"] == 1,
+	"xmaps: stubs visual-only mode only")
+tap.ok(modes_by_lhs34["<leader>v1"][1] == "v" and #modes_by_lhs34["<leader>v1"] == 1,
+	"vmaps: stubs visual+select mode only")
+tap.ok(modes_by_lhs34["<leader>s1"][1] == "s" and #modes_by_lhs34["<leader>s1"] == 1,
+	"smaps: stubs select mode only")
+tap.ok(modes_by_lhs34["<leader>o1"][1] == "o" and #modes_by_lhs34["<leader>o1"] == 1,
+	"omaps: stubs operator-pending mode only")
+tap.ok(modes_by_lhs34["<leader>c1"][1] == "c" and #modes_by_lhs34["<leader>c1"] == 1,
+	"cmaps: stubs command-line mode only")
+
+mock_set(vim.keymap, "set", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 35: loading a `maps`-triggered plugin removes the stub from all
+--          implicit modes at once
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local del_calls35 = {}
+mock_set(vim.keymap, "del", function(mode, lhs)
+	table.insert(del_calls35, { mode = mode, lhs = lhs })
+end)
+
+local maps_handler35
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>ff" then maps_handler35 = handler end
+end)
+
+autopack.setup({
+	{
+		name = "telescope.nvim",
+		maps = { "<leader>ff" },
+	},
+})
+
+maps_handler35()
+
+tap.ok(#del_calls35 == 1, "maps: removes exactly one stub mapping on load")
+tap.ok(type(del_calls35[1].mode) == "table" and #del_calls35[1].mode == 3,
+	"maps: stub removal targets all three implicit modes at once")
+
+mock_set(vim.keymap, "set", function() end)
+mock_set(vim.keymap, "del", function() end)
 
 -- ---------------------------------------------------------------------------
 -- Done

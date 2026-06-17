@@ -57,13 +57,19 @@ local function feed(keys, mode)
 	)
 end
 
--- Normalize a `keys` entry into { lhs = <string>, mode = <string> }.
-local function parse_key(k)
-	if type(k) == "table" then
-		return { lhs = k.lhs or k[1], mode = k.mode or "n" }
-	end
-	return { lhs = k, mode = "n" }
-end
+-- Maps a spec's mode-keyed fields to the nvim_set_keymap mode chars they
+-- stub. `maps` implicitly covers normal, insert, and visual-only modes;
+-- the per-mode fields (nmaps, imaps, ...) restrict a mapping to one mode.
+local MAP_FIELDS = {
+	{ field = "maps", modes = { "n", "i", "x" } },
+	{ field = "nmaps", modes = { "n" } },
+	{ field = "imaps", modes = { "i" } },
+	{ field = "xmaps", modes = { "x" } },
+	{ field = "vmaps", modes = { "v" } },
+	{ field = "smaps", modes = { "s" } },
+	{ field = "omaps", modes = { "o" } },
+	{ field = "cmaps", modes = { "c" } },
+}
 
 -- ---------------------------------------------------------------------------
 -- loaders
@@ -214,30 +220,39 @@ local function register(opts)
 		local label = module_key or opts.name
 
 		-- Key stubs.
-		for _, raw in ipairs(mod.keys or {}) do
-			local k = parse_key(raw)
-			table.insert(mod._keymaps, k)
-			vim.keymap.set(k.mode, k.lhs, function()
-				loader(function()
-					local lhs = expand_leader(k.lhs)
-					-- Defer the replay: feeding the key synchronously while we're
-					-- still executing the stub mapping causes the re-sent key not to
-					-- resolve to the freshly-loaded mapping. vim.schedule runs it on
-					-- the next tick, after this mapping fully unwinds.
-					vim.schedule(function()
-						if vim.tbl_isempty(vim.fn.maparg(lhs, k.mode, false, true)) then
-							vim.notify(
-								("autopack: '%s' loaded but found no %s-mode mapping for %s; "
-									.. "replaying anyway. If nothing happens, the plugin likely "
-									.. "exposes a <Plug> mapping you must bind yourself.")
-									:format(label, k.mode, k.lhs),
-								vim.log.levels.WARN
-							)
-						end
-						feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
+		for _, map_field in ipairs(MAP_FIELDS) do
+			for _, raw_lhs in ipairs(mod[map_field.field] or {}) do
+				local modes = map_field.modes
+				table.insert(mod._keymaps, { lhs = raw_lhs, mode = modes })
+				vim.keymap.set(modes, raw_lhs, function()
+					loader(function()
+						local lhs = expand_leader(raw_lhs)
+						-- Defer the replay: feeding the key synchronously while we're
+						-- still executing the stub mapping causes the re-sent key not to
+						-- resolve to the freshly-loaded mapping. vim.schedule runs it on
+						-- the next tick, after this mapping fully unwinds.
+						vim.schedule(function()
+							local has_mapping = false
+							for _, m in ipairs(modes) do
+								if not vim.tbl_isempty(vim.fn.maparg(lhs, m, false, true)) then
+									has_mapping = true
+									break
+								end
+							end
+							if not has_mapping then
+								vim.notify(
+									("autopack: '%s' loaded but found no mapping for %s; "
+										.. "replaying anyway. If nothing happens, the plugin likely "
+										.. "exposes a <Plug> mapping you must bind yourself.")
+										:format(label, raw_lhs),
+									vim.log.levels.WARN
+								)
+							end
+							feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
+						end)
 					end)
-				end)
-			end, { desc = "autopack stub -> " .. label })
+				end, { desc = "autopack stub -> " .. label })
+			end
 		end
 
 		-- Command stubs.

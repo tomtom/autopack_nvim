@@ -19,7 +19,7 @@ Specs ............................ |autopack-specs|
   module ......................... |autopack-spec-module|
   init ........................... |autopack-spec-init|
   setup ......................... |autopack-spec-setup|
-  keys ........................... |autopack-spec-keys|
+  maps ........................... |autopack-spec-maps|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
   startup ........................ |autopack-spec-startup|
@@ -121,7 +121,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         {
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
             setup = { signcolumn = true },
-            keys = { "<leader>gs" },
+            maps = { "<leader>gs" },
         },
     })
     -- Or as a shorthand string:
@@ -129,7 +129,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         {
             spec = "https://github.com/lewis6991/gitsigns.nvim",
             setup = { signcolumn = true },
-            keys = { "<leader>gs" },
+            maps = { "<leader>gs" },
         },
     })
 <
@@ -183,7 +183,7 @@ module (string, optional)                         *autopack-spec-module*
             name = "LuaSnip", -- installed manually, not via `spec`
             module = "luasnip",
             setup = true,
-            keys = { "<Tab>" },
+            maps = { "<Tab>" },
         },
     })
 <
@@ -243,27 +243,34 @@ setup (function|table|true, optional)             *autopack-spec-setup*
     })
 <
 
-keys (list, optional)                             *autopack-spec-keys*
-  A list of key mappings that trigger loading. Each entry can be:
-    - string ~
-      A key sequence in |:map| notation (e.g. `"<leader>gs"`). Normal mode
-      is assumed.
-    - table ~
-      A table with `lhs` (the key sequence) and an optional `mode` field.
-      `mode` can be a string or list of mode strings (e.g. `{ "n", "i" }`).
-      If omitted, `mode` defaults to `"n"`.
+maps (list, optional)                             *autopack-spec-maps*
+  A list of key sequences (strings, in |:map| notation, e.g. `"<leader>gs"`)
+  that trigger loading. Each one is stubbed in Normal, Insert, and
+  Visual-only mode (`n`, `i`, `x`).
 
-  When the key is pressed, autopack removes the stub mapping, loads the
-  plugin, and replays the key so the real mapping takes effect.
+  To restrict a key sequence to a single mode, use the matching per-mode
+  field instead of `maps`:
+    - nmaps ~  Normal mode (`n`) only.
+    - imaps ~  Insert mode (`i`) only.
+    - xmaps ~  Visual-only mode (`x`) only.
+    - vmaps ~  Visual+Select mode (`v`) only.
+    - smaps ~  Select mode (`s`) only.
+    - omaps ~  Operator-pending mode (`o`) only.
+    - cmaps ~  Command-line mode (`c`) only.
+
+  Each of these fields takes the same kind of list of key-sequence strings
+  as `maps`.
+
+  When one of the stubbed keys is pressed, autopack removes the stub
+  mapping, loads the plugin, and replays the key so the real mapping takes
+  effect.
 
   Example: >
     require("autopack").setup({
         {
             name = "telescope.nvim",
-            keys = {
-                "<leader>ff",
-                { lhs = "<leader>fb", mode = { "n", "v" } },
-            },
+            maps = { "<leader>ff" },
+            vmaps = { "<leader>fb" },
         },
     })
 <
@@ -304,7 +311,7 @@ patterns (list, optional)                         *autopack-spec-patterns*
 
 startup (boolean, optional)                       *autopack-spec-startup*
   When `true`, loads the plugin (or |autopack-spec-submodules| entry)
-  immediately instead of waiting for a |autopack-spec-keys|,
+  immediately instead of waiting for a |autopack-spec-maps|,
   |autopack-spec-commands|, or |autopack-spec-patterns| trigger: runs
   |:packadd| and |autopack-spec-setup| right away, during |autopack-setup|.
 
@@ -337,7 +344,7 @@ dependencies (list, optional)               *autopack-spec-dependencies*
             name = "telescope",
             spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
             dependencies = { "plenary" },
-            keys = { "<leader>ff" },
+            maps = { "<leader>ff" },
         },
     })
 <
@@ -348,7 +355,7 @@ dependencies (list, optional)               *autopack-spec-dependencies*
 submodules (table, optional)                   *autopack-spec-submodules*
   For plugins that expose several independently-loadable Lua modules from a
   single install (e.g. `mini.nvim`), `submodules` maps each module's
-  require() path to its own |autopack-spec-keys|, |autopack-spec-commands|,
+  require() path to its own |autopack-spec-maps|, |autopack-spec-commands|,
   |autopack-spec-patterns|, and |autopack-spec-setup|.
 
   Each module is loaded independently: only that module's `setup` runs when
@@ -356,7 +363,7 @@ submodules (table, optional)                   *autopack-spec-submodules*
   only once for the whole plugin, shared across all modules, whichever
   module's trigger fires first.
 
-  When `submodules` is given, the top-level `keys`/`commands`/`patterns`/
+  When `submodules` is given, the top-level `maps`/`commands`/`patterns`/
   `setup`/`module` fields are not used; put them inside the relevant
   `submodules` entry instead.
 
@@ -367,12 +374,12 @@ submodules (table, optional)                   *autopack-spec-submodules*
             spec = { src = "https://github.com/nvim-mini/mini.nvim" },
             submodules = {
                 ["mini.git"] = {
-                    keys = { "<leader>gg" },
+                    maps = { "<leader>gg" },
                     commands = { "MiniGit" },
                     setup = true,
                 },
                 ["mini.surround"] = {
-                    keys = { "sa", "sd" },
+                    maps = { "sa", "sd" },
                     setup = {},
                 },
             },
@@ -424,20 +431,20 @@ setup()                                   *autopack-example-setup*
             name = "gitsigns",
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
             setup = { signcolumn = true },
-            keys = { "<leader>gs" },
+            maps = { "<leader>gs" },
             commands = { "Gitsigns" },
         },
         {
             name = "fugitive",
             spec = { src = "https://github.com/tpope/vim-fugitive" },
-            keys = { "<leader>gg" },
+            maps = { "<leader>gg" },
             commands = { "Git", "Gdiffsplit" },
         },
         {
             name = "telescope",
             spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
             setup = { defaults = { layout_strategy = "flex" } },
-            keys = { "<leader>ff", "<leader>fg" },
+            maps = { "<leader>ff", "<leader>fg" },
             commands = { "Telescope" },
         },
     })
