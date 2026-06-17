@@ -392,9 +392,12 @@ submodules (table, optional)                   *autopack-spec-submodules*
   loaded plugin and runs `require("mini.surround").setup({})`.
 
 debug (boolean, optional)                         *autopack-spec-debug*
-  When `true`, autopack prints a trace of this plugin's (or, when set
-  inside a |autopack-spec-submodules| entry, this module's) load lifecycle
-  via |vim.notify()| at INFO level, so it shows up in |:messages|: which
+  A top-level plugin option: it is read from the plugin's own spec, not
+  from individual |autopack-spec-submodules| entries, and applies to every
+  module of the plugin.
+
+  When `true`, autopack prints a trace of the plugin's load lifecycle via
+  |vim.notify()| at INFO level, so it shows up in |:messages|: which
   trigger fired, the |:packadd| step, the |autopack-spec-setup| call, and
   the trigger replay.
 

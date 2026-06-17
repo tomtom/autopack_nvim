@@ -1044,6 +1044,101 @@ mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 end)
 
 -- ---------------------------------------------------------------------------
+-- Test 38: `debug` is a plugin-level option: it also traces submodule loads
+--          even when the submodule entry itself has no `debug` field
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local cmd_handler38
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	if name == "DebugSubCmd" then cmd_handler38 = handler end
+end)
+
+local real_require38 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	{
+		name = "mini.nvim",
+		debug = true,
+		submodules = {
+			["mini.surround"] = { commands = { "DebugSubCmd" }, setup = true },
+		},
+	},
+})
+
+cmd_handler38({ args = "", range = 0, bang = false, mods = "" })
+
+tap.ok(#notify_calls > 0,
+	"debug: a plugin-level `debug = true` traces submodule loads too")
+
+_G.require = real_require38
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
+
+-- ---------------------------------------------------------------------------
+-- Test 39: setup() propagates a top-level `dependencies` field into the
+--          registry, so update() resolves it (regression: dependencies
+--          used to be dropped because they live on `opts`, not `opts.spec`)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+autopack.setup({
+	{
+		name = "lib-a",
+		spec = { src = "https://github.com/user/lib-a" },
+	},
+	{
+		name = "main",
+		spec = { src = "https://github.com/user/main" },
+		dependencies = { "lib-a" },
+	},
+})
+
+autopack.update("main")
+
+local dep_srcs39 = {}
+for _, call in ipairs(pack_add_calls) do
+	for _, spec in ipairs(call) do
+		table.insert(dep_srcs39, spec.src)
+	end
+end
+
+local idx_a39 = find_idx(dep_srcs39, "https://github.com/user/lib-a")
+local idx_main39 = find_idx(dep_srcs39, "https://github.com/user/main")
+
+tap.ok(idx_a39 ~= nil, "setup(): dependency declared via setup() is added")
+tap.ok(idx_main39 ~= nil and idx_a39 < idx_main39,
+	"setup(): dependency declared via setup() is added before the dependent")
+
+-- ---------------------------------------------------------------------------
+-- Test 40: an unregistered dependency declared via setup() still raises an
+--          error through update() (same regression as Test 39)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+autopack.setup({
+	{
+		name = "main2",
+		spec = { src = "https://github.com/user/main2" },
+		dependencies = { "missing-dep" },
+	},
+})
+
+local ok40, err40 = pcall(autopack.update, "main2")
+tap.ok(not ok40, "setup(): unregistered dependency declared via setup() raises an error")
+tap.ok(err40 ~= nil and err40:find("missing%-dep"),
+	"setup(): error message mentions the missing dependency name")
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
