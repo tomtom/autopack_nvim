@@ -121,11 +121,34 @@ init (function, optional)                         *autopack-spec-init*
   that Vimscript plugins read at source time (before their plugin/ files are
   sourced).
 
+  Example: >
+    require("autopack").setup({
+        {
+            name = "vim-polyglot",
+            init = function()
+                vim.g.polyglot_disabled = { "markdown" }
+            end,
+            patterns = { "*" },
+        },
+    })
+<
+
 module (string, optional)                         *autopack-spec-module*
   Explicit Lua module name used when |autopack-spec-setup| is a table. If
   omitted, the module name is derived from the plugin name by stripping a
   trailing `.nvim` or `.vim` suffix. For example, `gitsigns.nvim` becomes
   `gitsigns`.
+
+  Example: >
+    require("autopack").setup({
+        {
+            name = "LuaSnip",
+            module = "luasnip",
+            setup = true,
+            keys = { "<Tab>" },
+        },
+    })
+<
 
 setup (function|table|true, optional)             *autopack-spec-setup*
   Code that runs AFTER |:packadd|. The behaviour depends on the type:
@@ -141,6 +164,19 @@ setup (function|table|true, optional)             *autopack-spec-setup*
       that register themselves during `require()` but still need `.setup()`
       called for configuration.
 
+  Example: >
+    require("autopack").setup({
+        { name = "gitsigns.nvim", setup = { signcolumn = true } },
+        { name = "nvim-autopairs", setup = true },
+        {
+            name = "neoformat",
+            setup = function()
+                vim.g.neoformat_enabled_lua = { "stylua" }
+            end,
+        },
+    })
+<
+
 keys (list, optional)                             *autopack-spec-keys*
   A list of key mappings that trigger loading. Each entry can be:
     - string ~
@@ -154,6 +190,18 @@ keys (list, optional)                             *autopack-spec-keys*
   When the key is pressed, autopack removes the stub mapping, loads the
   plugin, and replays the key so the real mapping takes effect.
 
+  Example: >
+    require("autopack").setup({
+        {
+            name = "telescope.nvim",
+            keys = {
+                "<leader>ff",
+                { lhs = "<leader>fb", mode = { "n", "v" } },
+            },
+        },
+    })
+<
+
 commands (list, optional)                         *autopack-spec-commands*
   A list of Ex command names (strings) that trigger loading. For example,
   `{ "Git", "Gdiffsplit" }`.
@@ -162,6 +210,15 @@ commands (list, optional)                         *autopack-spec-commands*
   plugin, and rebuilds the exact command line (including range, bang, count,
   modifiers, and arguments) before executing it.
 
+  Example: >
+    require("autopack").setup({
+        {
+            name = "vim-fugitive",
+            commands = { "Git", "Gdiffsplit" },
+        },
+    })
+<
+
 patterns (list, optional)                         *autopack-spec-patterns*
   A list of file glob patterns for |BufRead| event-based triggering. For
   example, `{ "*.gitignore", ".gitconfig" }`.
@@ -169,6 +226,15 @@ patterns (list, optional)                         *autopack-spec-patterns*
   When a buffer matching one of the patterns is read, autopack loads the
   plugin. During startup (before |VimEnter|), loading is deferred to
   |VimEnter|. After startup, loading happens synchronously on BufRead.
+
+  Example: >
+    require("autopack").setup({
+        {
+            name = "vim-gitgutter",
+            patterns = { "*.gitignore", ".gitconfig" },
+        },
+    })
+<
 
 dependencies (list, optional)               *autopack-spec-dependencies*
   A list of plugin names that must be added before this plugin. Dependencies
