@@ -24,6 +24,7 @@ Specs ............................ |autopack-specs|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
   dependencies ................... |autopack-spec-dependencies|
+  modules ........................ |autopack-spec-modules|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   register() ................. |autopack-example-register|
@@ -198,6 +199,44 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   When |:Autopackupdate| is invoked (or `update()` is called), plugins are
   added in dependency order. Updating "telescope" above will first add
   "plenary", then "telescope".
+
+modules (table, optional)                         *autopack-spec-modules*
+  For plugins that expose several independently-loadable Lua modules from a
+  single install (e.g. `mini.nvim`), `modules` maps each module's require()
+  path to its own |autopack-spec-keys|, |autopack-spec-commands|,
+  |autopack-spec-patterns|, |autopack-spec-config|, and |autopack-spec-setup|.
+
+  Each module is loaded independently: only that module's `config`/`setup`
+  runs when one of its triggers fires. |:packadd| (and |autopack-spec-init|)
+  still run only once for the whole plugin, shared across all modules,
+  whichever module's trigger fires first.
+
+  When `modules` is given, the top-level `keys`/`commands`/`patterns`/
+  `config`/`setup`/`module` fields are not used; put them inside the
+  relevant `modules` entry instead.
+
+  Example: >
+    require("autopack").register({
+        {
+            name = "mini.nvim",
+            spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+            modules = {
+                ["mini.git"] = {
+                    keys = { "<leader>gg" },
+                    commands = { "MiniGit" },
+                    setup = true,
+                },
+                ["mini.surround"] = {
+                    keys = { "sa", "sd" },
+                    config = {},
+                },
+            },
+        },
+    })
+<
+  Pressing `<leader>gg` loads `mini.nvim` (once) and runs
+  `require("mini.git").setup()`. Later pressing `sa` reuses the already
+  loaded plugin and runs `require("mini.surround").setup({})`.
 
 spec (table|string, optional)                         *autopack-spec-spec*
   A pack specification in |vim.pack.add()| format. When provided, the spec

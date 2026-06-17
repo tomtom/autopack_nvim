@@ -65,10 +65,45 @@ local function parse_key(k)
 end
 
 -- ---------------------------------------------------------------------------
--- loader (one-shot, shared by all of a plugin's stubs)
+-- loaders
+--   pack loader:   one-shot :packadd, shared by every module of a plugin.
+--   module loader: one-shot config/setup, one per module (or one for the
+--                   whole plugin when it has no `modules` table).
 -- ---------------------------------------------------------------------------
 
-local function make_loader(spec)
+-- :packadd + `init` hook, run at most once no matter which module triggers it.
+local function make_pack_loader(name, init)
+	local loaded = false
+	return function()
+		if loaded then
+			return
+		end
+		loaded = true
+
+		-- Optional pre-load hook: runs BEFORE packadd. This is where
+		-- Vimscript plugins want their vim.g.* options (read at source time).
+		if type(init) == "function" then
+			init()
+		end
+
+		-- Sources the plugin's plugin/ files; enough for an old Vimscript
+		-- plugin to define its commands/maps. No require() here.
+		vim.cmd("packadd " .. name)
+	end
+end
+
+-- Resolve the Lua module name to require() for a given module entry.
+-- `module_key` is the key the entry was registered under in `modules`
+-- (already the require() path); falls back to `mod.module` or a name
+-- derived from the plugin name for the single-module (no `modules`) case.
+local function resolve_module(name, module_key, mod)
+	if module_key then
+		return module_key
+	end
+	return mod.module or default_module(name)
+end
+
+local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 	local loaded = false
 
 	-- Called with a `replay` callback that re-triggers the original key/command.
@@ -79,51 +114,43 @@ local function make_loader(spec)
 		loaded = true
 
 		-- (1) Remove our stub mappings so they no longer intercept the key.
-		for _, km in ipairs(spec._keymaps) do
+		for _, km in ipairs(mod._keymaps) do
 			pcall(vim.keymap.del, km.mode, km.lhs)
 		end
 
 		-- (2) Remove our stub user-commands.
-		for _, name in ipairs(spec._commands) do
-			pcall(vim.api.nvim_del_user_command, name)
+		for _, cmd_name in ipairs(mod._commands) do
+			pcall(vim.api.nvim_del_user_command, cmd_name)
 		end
 
 		-- (3) Remove our BufRead autocmds (patterns trigger).
-		for _, id in ipairs(spec._autocmds) do
+		for _, id in ipairs(mod._autocmds) do
 			pcall(vim.api.nvim_del_autocmd, id)
 		end
 
-		-- (4) Optional pre-load hook: runs BEFORE packadd. This is where
-		--     Vimscript plugins want their vim.g.* options (read at source time).
-		if type(spec.init) == "function" then
-			spec.init()
-		end
-
-		-- (5) Load the real plugin. Sources its plugin/ files; enough for an
-		--     old Vimscript plugin to define its commands/maps. No require() here.
-		vim.cmd("packadd " .. spec.name)
+		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
+		ensure_pack_loaded()
 
 		-- (6) Optional post-load config:
 		--       config = function -> called as-is (do your own require().setup{})
 		--       config = table    -> require(module).setup(table)
 		--       setup  = true     -> require(module).setup()
-		--     `module` defaults to the plugin name minus a trailing .nvim/.vim.
-		local c = spec.config
+		local c = mod.config
 		if type(c) == "function" then
 			c()
-		elseif c ~= nil or spec.setup then
-			local module = spec.module or default_module(spec.name)
-			local ok, mod = pcall(require, module)
+		elseif c ~= nil or mod.setup then
+			local module = resolve_module(name, module_key, mod)
+			local ok, m = pcall(require, module)
 			if not ok then
 				error(string.format(
 					"autopack: require('%s') failed for plugin '%s'.\n"
 						.. "If this is a Vimscript plugin it has no Lua module: drop "
 						.. "`config`/`setup`/`module` and use `init` for vim.g.* settings.\n%s",
-					module, spec.name, mod
+					module, name, m
 				))
 			end
-			if type(mod) == "table" and type(mod.setup) == "function" then
-				mod.setup(type(c) == "table" and c or nil)
+			if type(m) == "table" and type(m.setup) == "function" then
+				m.setup(type(c) == "table" and c or nil)
 			end
 		end
 
@@ -168,111 +195,130 @@ local function register_one(opts)
 		M._registry[opts.name] = opts.spec
 	end
 
-	opts._keymaps = {}
-	opts._commands = {}
-	opts._autocmds = {}
+	-- Shared by every module of this plugin: :packadd only runs once, no
+	-- matter which module's trigger fires first.
+	local ensure_pack_loaded = make_pack_loader(opts.name, opts.init)
 
-	local loader, is_loaded = make_loader(opts)
+	-- Wire one module's keys/commands/patterns to its own one-shot loader.
+	-- `module_key` is nil for the single-module (no `modules` table) case.
+	local function wire_module(module_key, mod)
+		mod._keymaps = {}
+		mod._commands = {}
+		mod._autocmds = {}
 
-	-- Key stubs.
-	for _, raw in ipairs(opts.keys or {}) do
-		local k = parse_key(raw)
-		table.insert(opts._keymaps, k)
-		vim.keymap.set(k.mode, k.lhs, function()
-			loader(function()
-				local lhs = expand_leader(k.lhs)
-				-- Defer the replay: feeding the key synchronously while we're
-				-- still executing the stub mapping causes the re-sent key not to
-				-- resolve to the freshly-loaded mapping. vim.schedule runs it on
-				-- the next tick, after this mapping fully unwinds.
-				vim.schedule(function()
-					if vim.tbl_isempty(vim.fn.maparg(lhs, k.mode, false, true)) then
-						vim.notify(
-							("autopack: '%s' loaded but found no %s-mode mapping for %s; "
-								.. "replaying anyway. If nothing happens, the plugin likely "
-								.. "exposes a <Plug> mapping you must bind yourself.")
-								:format(opts.name, k.mode, k.lhs),
-							vim.log.levels.WARN
-						)
-					end
-					feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
+		local loader, is_loaded = make_module_loader(opts.name, module_key, mod, ensure_pack_loaded)
+		local label = module_key or opts.name
+
+		-- Key stubs.
+		for _, raw in ipairs(mod.keys or {}) do
+			local k = parse_key(raw)
+			table.insert(mod._keymaps, k)
+			vim.keymap.set(k.mode, k.lhs, function()
+				loader(function()
+					local lhs = expand_leader(k.lhs)
+					-- Defer the replay: feeding the key synchronously while we're
+					-- still executing the stub mapping causes the re-sent key not to
+					-- resolve to the freshly-loaded mapping. vim.schedule runs it on
+					-- the next tick, after this mapping fully unwinds.
+					vim.schedule(function()
+						if vim.tbl_isempty(vim.fn.maparg(lhs, k.mode, false, true)) then
+							vim.notify(
+								("autopack: '%s' loaded but found no %s-mode mapping for %s; "
+									.. "replaying anyway. If nothing happens, the plugin likely "
+									.. "exposes a <Plug> mapping you must bind yourself.")
+									:format(label, k.mode, k.lhs),
+								vim.log.levels.WARN
+							)
+						end
+						feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
+					end)
 				end)
-			end)
-		end, { desc = "autopack stub -> " .. opts.name })
+			end, { desc = "autopack stub -> " .. label })
+		end
+
+		-- Command stubs.
+		for _, cmd in ipairs(mod.commands or {}) do
+			table.insert(mod._commands, cmd)
+			vim.api.nvim_create_user_command(cmd, function(a)
+				loader(function()
+					-- Rebuild the exact command line: {mods} {range}{cmd}{bang} {args}
+					local line = ""
+					if a.range == 2 then
+						line = a.line1 .. "," .. a.line2
+					elseif a.range == 1 then
+						line = tostring(a.line1)
+					end
+					if a.mods and a.mods ~= "" then
+						line = a.mods .. " " .. line
+					end
+					line = line .. cmd
+					if a.bang then
+						line = line .. "!"
+					end
+					if a.args and a.args ~= "" then
+						line = line .. " " .. a.args
+					end
+					feed(":" .. line .. "\r", "n")
+				end)
+			end, {
+				nargs = "*",
+				bang = true,
+				range = true,
+				desc = "autopack stub -> " .. label,
+			})
+		end
+
+		-- BufRead stubs: one-shot autocmds keyed on file glob patterns.
+		-- During startup, defer loading to VimEnter (UI not ready yet).
+		-- After startup, load synchronously on BufRead.
+		local bufread_fired = false
+
+		local function bufread_loader()
+			loader(function() end)
+		end
+
+		for _, pattern in ipairs(mod.patterns or {}) do
+			local id = vim.api.nvim_create_autocmd("BufRead", {
+				pattern = pattern,
+				once = true,
+				callback = function()
+					bufread_fired = true
+					if vim.v.vim_did_enter == 0 then
+						-- Still in startup: defer to VimEnter.
+						vim.schedule(bufread_loader)
+					else
+						bufread_loader()
+					end
+				end,
+				desc = "autopack stub BufRead -> " .. label,
+			})
+			table.insert(mod._autocmds, id)
+		end
+
+		-- Fallback: if a matching buffer is already open at VimEnter, load now.
+		-- Only needed when BufRead patterns are registered.
+		if mod.patterns and #mod.patterns > 0 then
+			local vimenter_id = vim.api.nvim_create_autocmd("VimEnter", {
+				once = true,
+				callback = function()
+					if bufread_fired and not is_loaded() then
+						bufread_loader()
+					end
+				end,
+				desc = "autopack fallback VimEnter -> " .. label,
+			})
+			table.insert(mod._autocmds, vimenter_id)
+		end
 	end
 
-	-- Command stubs.
-	for _, cmd in ipairs(opts.commands or {}) do
-		table.insert(opts._commands, cmd)
-		vim.api.nvim_create_user_command(cmd, function(a)
-			loader(function()
-				-- Rebuild the exact command line: {mods} {range}{cmd}{bang} {args}
-				local line = ""
-				if a.range == 2 then
-					line = a.line1 .. "," .. a.line2
-				elseif a.range == 1 then
-					line = tostring(a.line1)
-				end
-				if a.mods and a.mods ~= "" then
-					line = a.mods .. " " .. line
-				end
-				line = line .. cmd
-				if a.bang then
-					line = line .. "!"
-				end
-				if a.args and a.args ~= "" then
-					line = line .. " " .. a.args
-				end
-				feed(":" .. line .. "\r", "n")
-			end)
-		end, {
-			nargs = "*",
-			bang = true,
-			range = true,
-			desc = "autopack stub -> " .. opts.name,
-		})
-	end
-
-	-- BufRead stubs: one-shot autocmds keyed on file glob patterns.
-	-- During startup, defer loading to VimEnter (UI not ready yet).
-	-- After startup, load synchronously on BufRead.
-	local bufread_fired = false
-
-	local function bufread_loader()
-		loader(function() end)
-	end
-
-	for _, pattern in ipairs(opts.patterns or {}) do
-		local id = vim.api.nvim_create_autocmd("BufRead", {
-			pattern = pattern,
-			once = true,
-			callback = function()
-				bufread_fired = true
-				if vim.v.vim_did_enter == 0 then
-					-- Still in startup: defer to VimEnter.
-					vim.schedule(bufread_loader)
-				else
-					bufread_loader()
-				end
-			end,
-			desc = "autopack stub BufRead -> " .. opts.name,
-		})
-		table.insert(opts._autocmds, id)
-	end
-
-	-- Fallback: if a matching buffer is already open at VimEnter, load now.
-	-- Only needed when BufRead patterns are registered.
-	if opts.patterns and #opts.patterns > 0 then
-		local vimenter_id = vim.api.nvim_create_autocmd("VimEnter", {
-			once = true,
-			callback = function()
-				if bufread_fired and not is_loaded() then
-					bufread_loader()
-				end
-			end,
-			desc = "autopack fallback VimEnter -> " .. opts.name,
-		})
-		table.insert(opts._autocmds, vimenter_id)
+	if opts.modules then
+		assert(type(opts.modules) == "table" and not vim.tbl_isempty(opts.modules),
+			"autopack.register: `modules` must be a non-empty table of { [module_name] = { ... } }")
+		for module_key, mod in pairs(opts.modules) do
+			wire_module(module_key, mod)
+		end
+	else
+		wire_module(nil, opts)
 	end
 
 	return opts

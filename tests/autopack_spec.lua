@@ -40,6 +40,14 @@ local function reset_mocks()
 	autocmd_callbacks = {}
 end
 
+-- Patch one field of a mock table (e.g. the global `vim` or one of its
+-- subtables) for the duration of a single test. Indirection through a
+-- local parameter avoids luacheck's read-only-global-field check, which
+-- would otherwise flag intentional `vim.x = ...` mock overrides.
+local function mock_set(tbl, key, value)
+	tbl[key] = value
+end
+
 _G.vim = {
 	pack = {
 		add = function(specs)
@@ -75,6 +83,7 @@ _G.vim = {
 	cmd = function() end,
 	keymap = {
 		set = function() end,
+		del = function() end,
 	},
 	api = {
 		nvim_create_user_command = function(name, handler, opts)
@@ -87,6 +96,10 @@ _G.vim = {
 			end
 			return #autocmds
 		end,
+		nvim_del_user_command = function() end,
+		nvim_del_autocmd = function() end,
+		nvim_feedkeys = function() end,
+		nvim_replace_termcodes = function(s) return s end,
 	},
 }
 
@@ -570,6 +583,140 @@ tap.ok(#user_commands == 0,
 	"register({\"https://...\"}) creates no user command stubs")
 tap.ok(#autocmds == 0,
 	"register({\"https://...\"}) creates no autocmd stubs")
+
+-- ---------------------------------------------------------------------------
+-- Test 25: register() with `modules` creates stubs per module
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+autopack.register({
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+		modules = {
+			["mini.git"] = { commands = { "MiniGit" } },
+			["mini.surround"] = { keys = { "sa" } },
+		},
+	},
+})
+
+local found_minigit = false
+for _, cmd in ipairs(user_commands) do
+	if cmd.name == "MiniGit" then found_minigit = true end
+end
+tap.ok(found_minigit, "modules: command stub created for mini.git module")
+
+-- ---------------------------------------------------------------------------
+-- Test 26: register() with `modules` shares one :packadd across modules
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local packadd_calls = {}
+local real_cmd = vim.cmd
+mock_set(vim, "cmd", function(c)
+	table.insert(packadd_calls, c)
+end)
+
+local minigit_cmd_handler, minisurround_key_handler
+
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	if name == "MiniGit" then minigit_cmd_handler = handler end
+end)
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "sa" then minisurround_key_handler = handler end
+end)
+
+autopack.register({
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+		modules = {
+			["mini.git"] = { commands = { "MiniGit" } },
+			["mini.surround"] = { keys = { "sa" } },
+		},
+	},
+})
+
+minigit_cmd_handler({ args = "", range = 0, bang = false, mods = "" })
+minisurround_key_handler()
+
+tap.ok(#packadd_calls == 1,
+	"modules: :packadd runs once total, shared across both module triggers")
+tap.ok(packadd_calls[1] == "packadd mini.nvim",
+	"modules: :packadd uses the shared plugin name")
+
+mock_set(vim, "cmd", real_cmd)
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
+mock_set(vim.keymap, "set", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 27: register() with `modules` calls require() on each module's own name
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local required_modules = {}
+local real_require = require
+_G.require = function(name)
+	table.insert(required_modules, name)
+	return { setup = function() end }
+end
+
+local mod_cmd_handlers = {}
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	mod_cmd_handlers[name] = handler
+end)
+
+autopack.register({
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+		modules = {
+			["mini.git"] = { commands = { "MiniGit" }, setup = true },
+			["mini.surround"] = { commands = { "MiniSurround" }, setup = true },
+		},
+	},
+})
+
+mod_cmd_handlers["MiniGit"]({ args = "", range = 0, bang = false, mods = "" })
+mod_cmd_handlers["MiniSurround"]({ args = "", range = 0, bang = false, mods = "" })
+
+tap.ok(required_modules[1] == "mini.git" and required_modules[2] == "mini.surround"
+	or required_modules[1] == "mini.surround" and required_modules[2] == "mini.git",
+	"modules: each module's setup requires its own module name")
+
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
+_G.require = real_require
+
+-- ---------------------------------------------------------------------------
+-- Test 28: register() rejects an empty `modules` table
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local ok28, err28 = pcall(autopack.register, {
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
+		modules = {},
+	},
+})
+
+tap.ok(not ok28, "modules: empty `modules` table raises an error")
+tap.ok(err28 ~= nil and err28:find("modules"),
+	"modules: error message mentions 'modules'")
 
 -- ---------------------------------------------------------------------------
 -- Done
