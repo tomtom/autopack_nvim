@@ -4,6 +4,9 @@ local M = {}
 -- Populated when register() is called with an `opts.spec` field.
 M._registry = {}
 
+-- Global trace switch, set via require("autopack").setup({ debug = true, ... }).
+M._debug = false
+
 -- ---------------------------------------------------------------------------
 -- helpers
 -- ---------------------------------------------------------------------------
@@ -57,9 +60,9 @@ local function feed(keys, mode)
 	)
 end
 
--- Print a trace line to :messages when the plugin's `debug` field is set.
-local function trace(debug_enabled, label, msg)
-	if debug_enabled then
+-- Print a trace line to :messages when M._debug is set.
+local function trace(label, msg)
+	if M._debug then
 		vim.notify(("autopack[%s]: %s"):format(label, msg), vim.log.levels.INFO)
 	end
 end
@@ -117,7 +120,7 @@ local function resolve_module(name, module_key, mod)
 	return mod.module or default_module(name)
 end
 
-local function make_module_loader(name, module_key, mod, ensure_pack_loaded, debug_enabled)
+local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 	local loaded = false
 	local label = module_key or name
 
@@ -144,7 +147,7 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded, deb
 		end
 
 		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
-		trace(debug_enabled, label, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
+		trace(label, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
 		ensure_pack_loaded()
 
 		-- (6) Optional post-load setup:
@@ -154,12 +157,12 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded, deb
 		--       setup = true     -> require(module).setup()
 		local s = mod.setup
 		if type(s) == "function" then
-			trace(debug_enabled, label, "running function setup")
+			trace(label, "running function setup")
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)
 			s(ok and m or nil)
 		elseif s == true or type(s) == "table" then
-			trace(debug_enabled, label, "running setup()")
+			trace(label, "running setup()")
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)
 			if not ok then
@@ -231,7 +234,7 @@ local function register(opts)
 		mod._commands = {}
 		mod._autocmds = {}
 
-		local loader, is_loaded = make_module_loader(opts.name, module_key, mod, ensure_pack_loaded, opts.debug)
+		local loader, is_loaded = make_module_loader(opts.name, module_key, mod, ensure_pack_loaded)
 		local label = module_key or opts.name
 
 		-- Key stubs.
@@ -240,7 +243,7 @@ local function register(opts)
 				local modes = map_field.modes
 				table.insert(mod._keymaps, { lhs = raw_lhs, mode = modes })
 				vim.keymap.set(modes, raw_lhs, function()
-					trace(opts.debug, label, "key '" .. raw_lhs .. "' triggered load")
+					trace(label, "key '" .. raw_lhs .. "' triggered load")
 					loader(function()
 						local lhs = expand_leader(raw_lhs)
 						-- Defer the replay: feeding the key synchronously while we're
@@ -264,7 +267,7 @@ local function register(opts)
 									vim.log.levels.WARN
 								)
 							end
-							trace(opts.debug, label, "replaying key '" .. lhs .. "'")
+							trace(label, "replaying key '" .. lhs .. "'")
 							feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
 						end)
 					end)
@@ -276,7 +279,7 @@ local function register(opts)
 		for _, cmd in ipairs(mod.commands or {}) do
 			table.insert(mod._commands, cmd)
 			vim.api.nvim_create_user_command(cmd, function(a)
-				trace(opts.debug, label, "command '" .. cmd .. "' triggered load")
+				trace(label, "command '" .. cmd .. "' triggered load")
 				loader(function()
 					-- Rebuild the exact command line: {mods} {range}{cmd}{bang} {args}
 					local line = ""
@@ -295,7 +298,7 @@ local function register(opts)
 					if a.args and a.args ~= "" then
 						line = line .. " " .. a.args
 					end
-					trace(opts.debug, label, "replaying command ':" .. line .. "'")
+					trace(label, "replaying command ':" .. line .. "'")
 					feed(":" .. line .. "\r", "n")
 				end)
 			end, {
@@ -321,7 +324,7 @@ local function register(opts)
 				once = true,
 				callback = function()
 					bufread_fired = true
-					trace(opts.debug, label, "BufRead pattern '" .. pattern .. "' triggered load")
+					trace(label, "BufRead pattern '" .. pattern .. "' triggered load")
 					if vim.v.vim_did_enter == 0 then
 						-- Still in startup: defer to VimEnter.
 						vim.schedule(bufread_loader)
@@ -341,7 +344,7 @@ local function register(opts)
 				once = true,
 				callback = function()
 					if bufread_fired and not is_loaded() then
-						trace(opts.debug, label, "VimEnter fallback triggered load")
+						trace(label, "VimEnter fallback triggered load")
 						bufread_loader()
 					end
 				end,
@@ -354,7 +357,7 @@ local function register(opts)
 		-- command, or buffer event. Runs last so it removes the stubs
 		-- created above instead of leaving them dangling.
 		if mod.startup then
-			trace(opts.debug, label, "startup option triggered immediate load")
+			trace(label, "startup option triggered immediate load")
 			loader(function() end)
 		end
 	end
@@ -372,8 +375,13 @@ local function register(opts)
 	return opts
 end
 
--- Register one or more plugins. {specs} is a list of plugin specs.
+-- Register one or more plugins. {specs} is a list of plugin specs, plus an
+-- optional `debug` field (sibling of the list entries) to trace every
+-- plugin's load lifecycle.
 function M.setup(specs)
+	if specs.debug ~= nil then
+		M._debug = specs.debug
+	end
 	local results = {}
 	for _, opts in ipairs(specs) do
 		table.insert(results, register(opts))

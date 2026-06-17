@@ -25,7 +25,6 @@ Specs ............................ |autopack-specs|
   startup ........................ |autopack-spec-startup|
   dependencies ................... |autopack-spec-dependencies|
   submodules ..................... |autopack-spec-submodules|
-  debug ........................... |autopack-spec-debug|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   setup() ..................... |autopack-example-setup|
@@ -103,6 +102,24 @@ Usage                                                *autopack-usage*
 setup({specs})                                   *autopack-setup*
   Register one or more plugins. {specs} is a list of tables, each
   with the fields described in |autopack-specs|.
+
+  {specs} may also have a `debug` (boolean) field, alongside the list of
+  plugin tables. When `true`, autopack prints a trace of every plugin's
+  load lifecycle via |vim.notify()| at INFO level, so it shows up in
+  |:messages|: which trigger fired, the |:packadd| step, the
+  |autopack-spec-setup| call, and the trigger replay. This is a global
+  switch, not a per-plugin spec field.
+
+  Example: >
+    require("autopack").setup({
+        debug = true,
+        {
+            name = "gitsigns.nvim",
+            setup = { signcolumn = true },
+            maps = { "<leader>gs" },
+        },
+    })
+<
 
 ==============================================================================
 Specs                                              *autopack-specs*
@@ -390,27 +407,6 @@ submodules (table, optional)                   *autopack-spec-submodules*
   Pressing `<leader>gg` loads `mini.nvim` (once) and runs
   `require("mini.git").setup()`. Later pressing `sa` reuses the already
   loaded plugin and runs `require("mini.surround").setup({})`.
-
-debug (boolean, optional)                         *autopack-spec-debug*
-  A top-level plugin option: it is read from the plugin's own spec, not
-  from individual |autopack-spec-submodules| entries, and applies to every
-  module of the plugin.
-
-  When `true`, autopack prints a trace of the plugin's load lifecycle via
-  |vim.notify()| at INFO level, so it shows up in |:messages|: which
-  trigger fired, the |:packadd| step, the |autopack-spec-setup| call, and
-  the trigger replay.
-
-  Example: >
-    require("autopack").setup({
-        {
-            name = "gitsigns.nvim",
-            debug = true,
-            setup = { signcolumn = true },
-            maps = { "<leader>gs" },
-        },
-    })
-<
 
 ==============================================================================
 :Autopackupdate                                 *autopack-Autopackupdate*

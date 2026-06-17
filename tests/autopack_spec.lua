@@ -969,11 +969,13 @@ mock_set(vim.keymap, "set", function() end)
 mock_set(vim.keymap, "del", function() end)
 
 -- ---------------------------------------------------------------------------
--- Test 36: `debug = true` traces the full load lifecycle to :messages
+-- Test 36: a global `debug = true` in setup() traces the full load
+--          lifecycle to :messages
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
+autopack._debug = false
 
 local cmd_handler36
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
@@ -985,11 +987,11 @@ local real_require36 = require
 _G.require = function() return { setup = function() end } end
 
 autopack.setup({
+	debug = true,
 	{
 		name = "debug-plugin",
 		commands = { "DebugPlugin" },
 		setup = true,
-		debug = true,
 	},
 })
 
@@ -1011,11 +1013,13 @@ mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 end)
 
 -- ---------------------------------------------------------------------------
--- Test 37: without `debug`, no trace notifications are emitted
+-- Test 37: without a global `debug = true`, no trace notifications are
+--          emitted
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
+autopack._debug = false
 
 local cmd_handler37
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
@@ -1036,7 +1040,7 @@ autopack.setup({
 
 cmd_handler37({ args = "", range = 0, bang = false, mods = "" })
 
-tap.ok(#notify_calls == 0, "debug: emits no trace notifications when `debug` is not set")
+tap.ok(#notify_calls == 0, "debug: emits no trace notifications when global `debug` is not set")
 
 _G.require = real_require37
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
@@ -1044,12 +1048,13 @@ mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 end)
 
 -- ---------------------------------------------------------------------------
--- Test 38: `debug` is a plugin-level option: it also traces submodule loads
---          even when the submodule entry itself has no `debug` field
+-- Test 38: the global `debug` flag also traces submodule loads, even though
+--          submodule entries have no `debug` field of their own
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
+autopack._debug = false
 
 local cmd_handler38
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
@@ -1061,9 +1066,9 @@ local real_require38 = require
 _G.require = function() return { setup = function() end } end
 
 autopack.setup({
+	debug = true,
 	{
 		name = "mini.nvim",
-		debug = true,
 		submodules = {
 			["mini.surround"] = { commands = { "DebugSubCmd" }, setup = true },
 		},
@@ -1073,12 +1078,13 @@ autopack.setup({
 cmd_handler38({ args = "", range = 0, bang = false, mods = "" })
 
 tap.ok(#notify_calls > 0,
-	"debug: a plugin-level `debug = true` traces submodule loads too")
+	"debug: the global `debug` flag traces submodule loads too")
 
 _G.require = real_require38
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 	table.insert(user_commands, { name = name, handler = handler, opts = opts })
 end)
+autopack._debug = false
 
 -- ---------------------------------------------------------------------------
 -- Test 39: setup() propagates a top-level `dependencies` field into the
