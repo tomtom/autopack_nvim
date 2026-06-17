@@ -115,11 +115,10 @@ setup({specs})                                   *autopack-setup*
 
   Example: >
     require("autopack").setup({
-        debug = true,
         {
             name = "gitsigns.nvim",
             setup = { signcolumn = true },
-            maps = { "<leader>gs" },
+            nmaps = { "<leader>gs" },
         },
     })
 <
@@ -142,7 +141,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         {
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
             setup = { signcolumn = true },
-            maps = { "<leader>gs" },
+            nmaps = { "<leader>gs" },
         },
     })
     -- Or as a shorthand string:
@@ -150,7 +149,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         {
             spec = "https://github.com/lewis6991/gitsigns.nvim",
             setup = { signcolumn = true },
-            maps = { "<leader>gs" },
+            nmaps = { "<leader>gs" },
         },
     })
 <
@@ -290,7 +289,7 @@ maps (list, optional)                             *autopack-spec-maps*
     require("autopack").setup({
         {
             name = "telescope.nvim",
-            maps = { "<leader>ff" },
+            nmaps = { "<leader>ff" },
             vmaps = { "<leader>fb" },
         },
     })
@@ -376,7 +375,7 @@ dependencies (list, optional)               *autopack-spec-dependencies*
             name = "telescope",
             spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
             dependencies = { "plenary" },
-            maps = { "<leader>ff" },
+            nmaps = { "<leader>ff" },
         },
     })
 <
@@ -406,12 +405,12 @@ submodules (table, optional)                   *autopack-spec-submodules*
             spec = { src = "https://github.com/nvim-mini/mini.nvim" },
             submodules = {
                 ["mini.git"] = {
-                    maps = { "<leader>gg" },
+                    nmaps = { "<leader>gg" },
                     commands = { "MiniGit" },
                     setup = true,
                 },
                 ["mini.surround"] = {
-                    maps = { "sa", "sd" },
+                    nmaps = { "sa", "sd" },
                     setup = {},
                 },
             },
@@ -463,20 +462,20 @@ setup()                                   *autopack-example-setup*
             name = "gitsigns",
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
             setup = { signcolumn = true },
-            maps = { "<leader>gs" },
+            nmaps = { "<leader>gs" },
             commands = { "Gitsigns" },
         },
         {
             name = "fugitive",
             spec = { src = "https://github.com/tpope/vim-fugitive" },
-            maps = { "<leader>gg" },
+            nmaps = { "<leader>gg" },
             commands = { "Git", "Gdiffsplit" },
         },
         {
             name = "telescope",
             spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
             setup = { defaults = { layout_strategy = "flex" } },
-            maps = { "<leader>ff", "<leader>fg" },
+            nmaps = { "<leader>ff", "<leader>fg" },
             commands = { "Telescope" },
         },
     })

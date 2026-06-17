@@ -27,18 +27,18 @@ require("autopack").setup({
     {
         name = "gitsigns",
         setup = { signcolumn = true },
-        maps = { "<leader>gs" },
+        nmaps = { "<leader>gs" },
         commands = { "Gitsigns" },
     },
     {
         name = "fugitive",
-        maps = { "<leader>gg" },
+        nmaps = { "<leader>gg" },
         commands = { "Git", "Gdiffsplit" },
     },
     {
         name = "telescope",
         setup = { defaults = { layout_strategy = "flex" } },
-        maps = { "<leader>ff", "<leader>fg" },
+        nmaps = { "<leader>ff", "<leader>fg" },
         commands = { "Telescope" },
     },
 })
