@@ -134,7 +134,8 @@ tap.ok(found, "Autopackupdate user command was created immediately (no VimEnter 
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
-autopack._registry = {} -- ensure clean state
+autopack._registry = {}
+autopack._loaders = {} -- ensure clean state
 
 autopack.setup({
 	{
@@ -158,6 +159,7 @@ tap.ok(
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -175,6 +177,7 @@ tap.ok(autopack._registry["no-spec-plugin"] == nil,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -204,6 +207,7 @@ tap.ok(autopack._registry["plugin-c"] == nil,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack.update(nil) -- simulates no-args
 
 tap.ok(#notify_calls == 1,
@@ -389,6 +393,7 @@ tap.ok(dn("https://github.com/tpope/vim-fugitive") == "vim-fugitive",
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local derived = autopack.setup({
 	{
@@ -406,6 +411,7 @@ tap.ok(derived[1].name == "gitsigns.nvim",
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local preserved = autopack.setup({
 	{
@@ -423,6 +429,7 @@ tap.ok(preserved[1].name == "my-gitsigns",
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local ok15, err15 = pcall(autopack.setup, {
 	{ setup = { signcolumn = true } },
@@ -541,6 +548,7 @@ tap.ok(dep_a_idx ~= nil and dep_b_idx ~= nil and dep_a_idx < dep_b_idx,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local result = autopack.setup({ "https://github.com/user/cool-plugin" })
 
@@ -559,6 +567,7 @@ tap.ok(autopack._registry["cool-plugin"] ~= nil,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local result2 = autopack.setup({ { spec = "https://github.com/user/another-plugin.git" } })
 
@@ -577,6 +586,7 @@ tap.ok(autopack._registry["another-plugin"] ~= nil,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({ "https://github.com/user/no-stubs-plugin" })
 
@@ -591,6 +601,7 @@ tap.ok(#autocmds == 0,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -615,6 +626,7 @@ tap.ok(found_minigit, "submodules: command stub created for mini.git module")
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local packadd_calls = {}
 local real_cmd = vim.cmd
@@ -663,6 +675,7 @@ mock_set(vim.keymap, "set", function() end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local required_modules = {}
 local real_require = require
@@ -706,6 +719,7 @@ _G.require = real_require
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local ok28, err28 = pcall(autopack.setup, {
 	{
@@ -725,6 +739,7 @@ tap.ok(err28 ~= nil and err28:find("submodules"),
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local startup_packadd_calls = {}
 local real_cmd29 = vim.cmd
@@ -762,6 +777,7 @@ _G.require = real_require29
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local required30 = {}
 local real_require30 = require
@@ -805,6 +821,7 @@ _G.require = real_require30
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local fake_module31 = { setup = function() end, gen_highlighter = {} }
 local real_require31 = require
@@ -832,6 +849,7 @@ _G.require = real_require31
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local real_require32 = require
 _G.require = function() error("module not found") end
@@ -861,6 +879,7 @@ _G.require = real_require32
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local maps_calls33 = {}
 mock_set(vim.keymap, "set", function(mode, lhs, handler)
@@ -892,6 +911,7 @@ mock_set(vim.keymap, "set", function() end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local mode_calls34 = {}
 mock_set(vim.keymap, "set", function(mode, lhs, handler)
@@ -941,6 +961,7 @@ mock_set(vim.keymap, "set", function() end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 local del_calls35 = {}
 mock_set(vim.keymap, "del", function(mode, lhs)
@@ -975,6 +996,7 @@ mock_set(vim.keymap, "del", function() end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack._debug = false
 
 local cmd_handler36
@@ -1019,6 +1041,7 @@ end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack._debug = false
 
 local cmd_handler37
@@ -1054,6 +1077,7 @@ end)
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack._debug = false
 
 local cmd_handler38
@@ -1094,6 +1118,7 @@ autopack._debug = false
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -1130,6 +1155,7 @@ tap.ok(idx_main39 ~= nil and idx_a39 < idx_main39,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -1153,6 +1179,7 @@ tap.ok(err40 ~= nil and err40:find("missing%-dep"),
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack._debug = false
 
 local real_require41 = require
@@ -1192,6 +1219,7 @@ autopack._debug = false
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 
 autopack.setup({
 	{
@@ -1234,6 +1262,7 @@ tap.ok(idx_main42 ~= nil and idx_dep42 < idx_main42,
 
 reset_mocks()
 autopack._registry = {}
+autopack._loaders = {}
 autopack._debug = false
 
 autopack.setup({
@@ -1257,6 +1286,98 @@ tap.ok(joined43:find("autopack[main]: vim.pack.add()", 1, true) ~= nil,
 	"debug: traces vim.pack.add() for the requested plugin")
 
 autopack._debug = false
+
+-- ---------------------------------------------------------------------------
+-- Test 44: a submodule's trigger force-loads (packadd) its own declared
+--          dependency, even though that dependency has no triggers of its
+--          own (regression: a dependency was only ever installed via
+--          update(), never packadd-ed when the depending module's runtime
+--          trigger actually fired)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+
+local packadd_calls44 = {}
+local real_cmd44 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	table.insert(packadd_calls44, c)
+end)
+
+local key_handler44
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<c-j>" then key_handler44 = handler end
+end)
+
+local real_require44 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	{ name = "friendly-snippets", spec = { src = "https://github.com/user/friendly-snippets" } },
+	{
+		name = "mini.nvim",
+		submodules = {
+			["mini.snippets"] = {
+				imaps = { "<c-j>" },
+				dependencies = { "friendly-snippets" },
+				setup = true,
+			},
+		},
+	},
+})
+
+key_handler44()
+
+tap.ok(#packadd_calls44 == 2,
+	"submodules: triggering a module packadds both it and its dependency")
+local found_dep44, found_main44 = false, false
+for _, c in ipairs(packadd_calls44) do
+	if c == "packadd friendly-snippets" then found_dep44 = true end
+	if c == "packadd mini.nvim" then found_main44 = true end
+end
+tap.ok(found_dep44, "submodules: the dependency is packadd-ed")
+tap.ok(found_main44, "submodules: the plugin itself is still packadd-ed")
+tap.ok(packadd_calls44[1] == "packadd friendly-snippets",
+	"submodules: the dependency is packadd-ed before the depending plugin")
+
+_G.require = real_require44
+mock_set(vim, "cmd", real_cmd44)
+mock_set(vim.keymap, "set", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 45: an unregistered dependency on a submodule errors when that
+--          module's trigger fires
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+
+local key_handler45
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<c-k>" then key_handler45 = handler end
+end)
+
+autopack.setup({
+	{
+		name = "mini.nvim",
+		submodules = {
+			["mini.snippets"] = {
+				imaps = { "<c-k>" },
+				dependencies = { "missing-dep" },
+				setup = true,
+			},
+		},
+	},
+})
+
+local ok45, err45 = pcall(key_handler45)
+tap.ok(not ok45, "submodules: an unregistered submodule dependency raises an error on trigger")
+tap.ok(err45 ~= nil and err45:find("missing%-dep"),
+	"submodules: the error message mentions the missing dependency name")
+
+mock_set(vim.keymap, "set", function() end)
 
 -- ---------------------------------------------------------------------------
 -- Done

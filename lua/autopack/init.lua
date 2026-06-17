@@ -4,6 +4,12 @@ local M = {}
 -- Populated when register() is called with an `opts.spec` field.
 M._registry = {}
 
+-- Registry of { name → { load = <fn>, dependencies = <list> } } so a
+-- plugin's runtime trigger can force-load its own dependencies (packadd),
+-- not just have them installed/updated by :Autopackupdate. Populated for
+-- every register() call, regardless of whether `opts.spec` is set.
+M._loaders = {}
+
 -- Global trace switch, set via require("autopack").setup({ debug = true, ... }).
 M._debug = false
 
@@ -67,6 +73,26 @@ local function trace(label, msg)
 	end
 end
 
+-- Force-load (packadd) a dependency and, recursively, its own declared
+-- dependencies, before the depending plugin/module continues loading.
+-- Errors on an unregistered dependency, mirroring resolve_deps().
+--   seen: dedup set shared across one trigger's dependency walk.
+local function load_dependency(name, label, seen)
+	if seen[name] then
+		return
+	end
+	seen[name] = true
+	local entry = M._loaders[name]
+	if entry == nil then
+		error("autopack: dependency '" .. name .. "' is not registered")
+	end
+	for _, dep in ipairs(entry.dependencies) do
+		load_dependency(dep, label, seen)
+	end
+	trace(label, "loading dependency '" .. name .. "'")
+	entry.load()
+end
+
 -- Maps a spec's mode-keyed fields to the nvim_set_keymap mode chars they
 -- stub. `maps` implicitly covers normal, insert, and visual-only modes;
 -- the per-mode fields (nmaps, imaps, ...) restrict a mapping to one mode.
@@ -122,7 +148,7 @@ local function resolve_module(name, module_key, mod)
 	return mod.module or default_module(name)
 end
 
-local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
+local function make_module_loader(name, module_key, mod, ensure_pack_loaded, mod_deps)
 	local loaded = false
 	local label = module_key or name
 
@@ -148,11 +174,18 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 			pcall(vim.api.nvim_del_autocmd, id)
 		end
 
-		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
+		-- (4) Force-load this module's own declared dependencies first, so
+		-- they're available when the plugin's setup() runs.
+		local seen = {}
+		for _, dep in ipairs(mod_deps) do
+			load_dependency(dep, label, seen)
+		end
+
+		-- (5)+(6) Ensure the plugin itself is installed (shared across modules).
 		-- ensure_pack_loaded() traces its own one-shot :packadd internally.
 		ensure_pack_loaded()
 
-		-- (6) Optional post-load setup:
+		-- (7) Optional post-load setup:
 		--       setup = function -> called with the required module (or nil if
 		--                           require() failed, e.g. no Lua module exists)
 		--       setup = table    -> require(module).setup(table)
@@ -180,7 +213,7 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 			end
 		end
 
-		-- (7) Replay the trigger now that the real plugin is loaded.
+		-- (8) Replay the trigger now that the real plugin is loaded.
 		replay()
 	end
 
@@ -217,27 +250,32 @@ local function register(opts)
 	assert(type(opts.name) == "string",
 		"autopack.setup: `name` is required (or provide `spec.src` to derive it)")
 
+	-- `dependencies` can be declared as a sibling of `spec` on the
+	-- top-level opts, and/or inside individual `submodules` entries (see
+	-- autopack-spec-dependencies). Collected here regardless of whether
+	-- `opts.spec` is set, since M._loaders needs it for runtime force-loads
+	-- even when this plugin isn't managed by :Autopackupdate.
+	local all_deps = {}
+	for _, dep in ipairs(opts.dependencies or {}) do
+		table.insert(all_deps, dep)
+	end
+	for _, mod in pairs(opts.submodules or {}) do
+		for _, dep in ipairs(mod.dependencies or {}) do
+			table.insert(all_deps, dep)
+		end
+	end
+
 	if opts.spec then
-		-- `dependencies` can be declared as a sibling of `spec` on the
-		-- top-level opts, and/or inside individual `submodules` entries
-		-- (see autopack-spec-dependencies). resolve_deps() reads it off
-		-- the registry entry, so all of them must travel with the spec.
-		local deps = {}
-		for _, dep in ipairs(opts.dependencies or {}) do
-			table.insert(deps, dep)
-		end
-		for _, mod in pairs(opts.submodules or {}) do
-			for _, dep in ipairs(mod.dependencies or {}) do
-				table.insert(deps, dep)
-			end
-		end
-		opts.spec.dependencies = deps
+		-- resolve_deps() reads `dependencies` off the registry entry for
+		-- :Autopackupdate/update(), so it must travel with the spec.
+		opts.spec.dependencies = all_deps
 		M._registry[opts.name] = opts.spec
 	end
 
 	-- Shared by every module of this plugin: :packadd only runs once, no
 	-- matter which module's trigger fires first.
 	local ensure_pack_loaded = make_pack_loader(opts.name, opts.init)
+	M._loaders[opts.name] = { load = ensure_pack_loaded, dependencies = all_deps }
 
 	-- Wire one module's keys/commands/patterns to its own one-shot loader.
 	-- `module_key` is nil for the single-module (no `submodules` table) case.
@@ -246,7 +284,18 @@ local function register(opts)
 		mod._commands = {}
 		mod._autocmds = {}
 
-		local loader, is_loaded = make_module_loader(opts.name, module_key, mod, ensure_pack_loaded)
+		-- This module's own dependencies, plus any declared at the plugin's
+		-- top level: only these (not a sibling submodule's) get force-loaded
+		-- when this specific module's trigger fires.
+		local mod_deps = {}
+		for _, dep in ipairs(opts.dependencies or {}) do
+			table.insert(mod_deps, dep)
+		end
+		for _, dep in ipairs(mod.dependencies or {}) do
+			table.insert(mod_deps, dep)
+		end
+
+		local loader, is_loaded = make_module_loader(opts.name, module_key, mod, ensure_pack_loaded, mod_deps)
 		local label = module_key or opts.name
 
 		-- Key stubs.

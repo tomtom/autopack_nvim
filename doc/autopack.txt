@@ -359,6 +359,13 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   it is merged into the parent plugin's dependency list, so updating the
   plugin installs/updates dependencies declared by any of its submodules.
 
+  Dependencies are also force-loaded (|:packadd|, recursively) at runtime:
+  when a trigger fires, autopack |:packadd|s any dependency declared on
+  that specific module (or on the plugin's top level) before loading the
+  plugin itself, so the dependency's runtime files are available right
+  away. A sibling submodule's dependency is not force-loaded by an
+  unrelated submodule's trigger.
+
   Example: >
     require("autopack").setup({
         {
