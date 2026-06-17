@@ -25,8 +25,9 @@ local function derive_name(src)
 	local path = src:match("@[^:]+:(.+)$") or src:match("/([^/]+)$") or src
 	-- Get the last path component (for SSH paths like user/repo.git -> repo.git)
 	local name = path:match("([^/]+)$") or path
-	-- Strip trailing .git
-	return (name:gsub("%.git$", ""):gsub("%.nvim$", ""):gsub("%.vim$", ""):gsub("_nvim$", ""):gsub("_vim$", ""):gsub("^nvim%-", ""):gsub("^vim%-", ""))
+	-- Strip trailing .git. Keep any .nvim/.vim/nvim-/vim- affix: vim.pack.add()
+	-- installs under the literal repo name, so :packadd must match it exactly.
+	return (name:gsub("%.git$", ""))
 end
 
 -- Expand <leader>/<localleader> the same way :map does. nvim_replace_termcodes

@@ -302,8 +302,8 @@ tap.ok(#pack_add_calls == 1,
 
 local dn = autopack.derive_name
 
-tap.ok(dn("https://github.com/lewis6991/gitsigns.nvim") == "gitsigns",
-	"derive_name strips .nvim suffix from HTTPS URL")
+tap.ok(dn("https://github.com/lewis6991/gitsigns.nvim") == "gitsigns.nvim",
+	"derive_name keeps .nvim suffix from HTTPS URL")
 
 -- ---------------------------------------------------------------------------
 -- Test 11: derive_name strips .git suffix
@@ -334,32 +334,32 @@ tap.ok(dn("https://github.com/user/repo?branch=main") == "repo",
 	"derive_name strips query parameters")
 
 -- ---------------------------------------------------------------------------
--- Test 15: derive_name strips .vim suffix
+-- Test 15: derive_name keeps .vim suffix
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/user/foo.vim") == "foo",
-	"derive_name strips .vim suffix")
+tap.ok(dn("https://github.com/user/foo.vim") == "foo.vim",
+	"derive_name keeps .vim suffix")
 
 -- ---------------------------------------------------------------------------
--- Test 16: derive_name strips _nvim suffix
+-- Test 16: derive_name keeps _nvim suffix
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/user/foo_nvim") == "foo",
-	"derive_name strips _nvim suffix")
+tap.ok(dn("https://github.com/user/foo_nvim") == "foo_nvim",
+	"derive_name keeps _nvim suffix")
 
 -- ---------------------------------------------------------------------------
--- Test 17: derive_name strips _vim suffix
+-- Test 17: derive_name keeps _vim suffix
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/user/foo_vim") == "foo",
-	"derive_name strips _vim suffix")
+tap.ok(dn("https://github.com/user/foo_vim") == "foo_vim",
+	"derive_name keeps _vim suffix")
 
 -- ---------------------------------------------------------------------------
--- Test 18: derive_name strips .nvim suffix with hyphenated name
+-- Test 18: derive_name keeps .nvim suffix with hyphenated name
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/user/foo-bar.nvim") == "foo-bar",
-	"derive_name strips .nvim suffix from hyphenated name")
+tap.ok(dn("https://github.com/user/foo-bar.nvim") == "foo-bar.nvim",
+	"derive_name keeps .nvim suffix on hyphenated name")
 
 -- ---------------------------------------------------------------------------
 -- Test 19: derive_name with no suffix leaves name unchanged
@@ -369,18 +369,18 @@ tap.ok(dn("https://github.com/user/foo") == "foo",
 	"derive_name leaves name unchanged when no suffix")
 
 -- ---------------------------------------------------------------------------
--- Test 20: derive_name strips nvim- prefix
+-- Test 20: derive_name keeps the repo name as-is regardless of the org name
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/nvim-telescope/telescope.nvim") == "telescope",
-	"derive_name strips nvim- prefix and .nvim suffix")
+tap.ok(dn("https://github.com/nvim-telescope/telescope.nvim") == "telescope.nvim",
+	"derive_name keeps .nvim suffix, ignoring the org's nvim- prefix")
 
 -- ---------------------------------------------------------------------------
--- Test 21: derive_name strips vim- prefix
+-- Test 21: derive_name keeps vim- prefix
 -- ---------------------------------------------------------------------------
 
-tap.ok(dn("https://github.com/tpope/vim-fugitive") == "fugitive",
-	"derive_name strips vim- prefix")
+tap.ok(dn("https://github.com/tpope/vim-fugitive") == "vim-fugitive",
+	"derive_name keeps vim- prefix")
 
 -- ---------------------------------------------------------------------------
 -- Test 22: setup() with spec.src but no name derives the name
@@ -396,7 +396,7 @@ local derived = autopack.setup({
 	},
 })
 
-tap.ok(derived[1].name == "gitsigns",
+tap.ok(derived[1].name == "gitsigns.nvim",
 	"setup() derives name from spec.src when name is absent")
 
 -- ---------------------------------------------------------------------------
