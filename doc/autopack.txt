@@ -25,6 +25,7 @@ Specs ............................ |autopack-specs|
   startup ........................ |autopack-spec-startup|
   dependencies ................... |autopack-spec-dependencies|
   submodules ..................... |autopack-spec-submodules|
+  debug ........................... |autopack-spec-debug|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   setup() ..................... |autopack-example-setup|
@@ -389,6 +390,24 @@ submodules (table, optional)                   *autopack-spec-submodules*
   Pressing `<leader>gg` loads `mini.nvim` (once) and runs
   `require("mini.git").setup()`. Later pressing `sa` reuses the already
   loaded plugin and runs `require("mini.surround").setup({})`.
+
+debug (boolean, optional)                         *autopack-spec-debug*
+  When `true`, autopack prints a trace of this plugin's (or, when set
+  inside a |autopack-spec-submodules| entry, this module's) load lifecycle
+  via |vim.notify()| at INFO level, so it shows up in |:messages|: which
+  trigger fired, the |:packadd| step, the |autopack-spec-setup| call, and
+  the trigger replay.
+
+  Example: >
+    require("autopack").setup({
+        {
+            name = "gitsigns.nvim",
+            debug = true,
+            setup = { signcolumn = true },
+            maps = { "<leader>gs" },
+        },
+    })
+<
 
 ==============================================================================
 :Autopackupdate                                 *autopack-Autopackupdate*

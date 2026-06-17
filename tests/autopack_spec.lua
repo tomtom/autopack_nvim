@@ -66,6 +66,7 @@ _G.vim = {
 	log = {
 		levels = {
 			WARN = "WARN",
+			INFO = "INFO",
 		},
 	},
 	g = {
@@ -966,6 +967,81 @@ tap.ok(type(del_calls35[1].mode) == "table" and #del_calls35[1].mode == 3,
 
 mock_set(vim.keymap, "set", function() end)
 mock_set(vim.keymap, "del", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 36: `debug = true` traces the full load lifecycle to :messages
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local cmd_handler36
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	if name == "DebugPlugin" then cmd_handler36 = handler end
+end)
+
+local real_require36 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	{
+		name = "debug-plugin",
+		commands = { "DebugPlugin" },
+		setup = true,
+		debug = true,
+	},
+})
+
+cmd_handler36({ args = "", range = 0, bang = false, mods = "" })
+
+local joined36 = table.concat(notify_calls, "\n")
+tap.ok(joined36:find("command 'DebugPlugin' triggered load", 1, true) ~= nil,
+	"debug: traces the command trigger")
+tap.ok(joined36:find(":packadd", 1, true) ~= nil,
+	"debug: traces the :packadd step")
+tap.ok(joined36:find("running setup()", 1, true) ~= nil,
+	"debug: traces the setup() call")
+tap.ok(joined36:find("replaying command", 1, true) ~= nil,
+	"debug: traces command replay")
+
+_G.require = real_require36
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
+
+-- ---------------------------------------------------------------------------
+-- Test 37: without `debug`, no trace notifications are emitted
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local cmd_handler37
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+	if name == "NoDebugPlugin" then cmd_handler37 = handler end
+end)
+
+local real_require37 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	{
+		name = "no-debug-plugin",
+		commands = { "NoDebugPlugin" },
+		setup = true,
+	},
+})
+
+cmd_handler37({ args = "", range = 0, bang = false, mods = "" })
+
+tap.ok(#notify_calls == 0, "debug: emits no trace notifications when `debug` is not set")
+
+_G.require = real_require37
+mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
+	table.insert(user_commands, { name = name, handler = handler, opts = opts })
+end)
 
 -- ---------------------------------------------------------------------------
 -- Done

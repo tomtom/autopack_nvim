@@ -57,6 +57,13 @@ local function feed(keys, mode)
 	)
 end
 
+-- Print a trace line to :messages when `mod.debug` is set.
+local function trace(mod, label, msg)
+	if mod.debug then
+		vim.notify(("autopack[%s]: %s"):format(label, msg), vim.log.levels.INFO)
+	end
+end
+
 -- Maps a spec's mode-keyed fields to the nvim_set_keymap mode chars they
 -- stub. `maps` implicitly covers normal, insert, and visual-only modes;
 -- the per-mode fields (nmaps, imaps, ...) restrict a mapping to one mode.
@@ -112,6 +119,7 @@ end
 
 local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 	local loaded = false
+	local label = module_key or name
 
 	-- Called with a `replay` callback that re-triggers the original key/command.
 	local function load(replay)
@@ -136,6 +144,7 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 		end
 
 		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
+		trace(mod, label, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
 		ensure_pack_loaded()
 
 		-- (6) Optional post-load setup:
@@ -145,10 +154,12 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 		--       setup = true     -> require(module).setup()
 		local s = mod.setup
 		if type(s) == "function" then
+			trace(mod, label, "running function setup")
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)
 			s(ok and m or nil)
 		elseif s == true or type(s) == "table" then
+			trace(mod, label, "running setup()")
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)
 			if not ok then
@@ -225,6 +236,7 @@ local function register(opts)
 				local modes = map_field.modes
 				table.insert(mod._keymaps, { lhs = raw_lhs, mode = modes })
 				vim.keymap.set(modes, raw_lhs, function()
+					trace(mod, label, "key '" .. raw_lhs .. "' triggered load")
 					loader(function()
 						local lhs = expand_leader(raw_lhs)
 						-- Defer the replay: feeding the key synchronously while we're
@@ -248,6 +260,7 @@ local function register(opts)
 									vim.log.levels.WARN
 								)
 							end
+							trace(mod, label, "replaying key '" .. lhs .. "'")
 							feed(lhs, "m") -- "m" = remap, so the plugin's mapping fires
 						end)
 					end)
@@ -259,6 +272,7 @@ local function register(opts)
 		for _, cmd in ipairs(mod.commands or {}) do
 			table.insert(mod._commands, cmd)
 			vim.api.nvim_create_user_command(cmd, function(a)
+				trace(mod, label, "command '" .. cmd .. "' triggered load")
 				loader(function()
 					-- Rebuild the exact command line: {mods} {range}{cmd}{bang} {args}
 					local line = ""
@@ -277,6 +291,7 @@ local function register(opts)
 					if a.args and a.args ~= "" then
 						line = line .. " " .. a.args
 					end
+					trace(mod, label, "replaying command ':" .. line .. "'")
 					feed(":" .. line .. "\r", "n")
 				end)
 			end, {
@@ -302,6 +317,7 @@ local function register(opts)
 				once = true,
 				callback = function()
 					bufread_fired = true
+					trace(mod, label, "BufRead pattern '" .. pattern .. "' triggered load")
 					if vim.v.vim_did_enter == 0 then
 						-- Still in startup: defer to VimEnter.
 						vim.schedule(bufread_loader)
@@ -321,6 +337,7 @@ local function register(opts)
 				once = true,
 				callback = function()
 					if bufread_fired and not is_loaded() then
+						trace(mod, label, "VimEnter fallback triggered load")
 						bufread_loader()
 					end
 				end,
@@ -333,6 +350,7 @@ local function register(opts)
 		-- command, or buffer event. Runs last so it removes the stubs
 		-- created above instead of leaving them dangling.
 		if mod.startup then
+			trace(mod, label, "startup option triggered immediate load")
 			loader(function() end)
 		end
 	end
