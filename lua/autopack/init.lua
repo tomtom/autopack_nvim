@@ -406,7 +406,8 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Resolve dependency order for a plugin name.
--- Returns an ordered list of specs (dependencies first, then the plugin itself).
+-- Returns an ordered list of { name = <string>, spec = <table> } entries
+-- (dependencies first, then the plugin itself).
 -- Errors on unregistered deps or circular dependency chains.
 --   name: plugin name to resolve
 --   registry: { name -> spec } table
@@ -426,13 +427,15 @@ local function resolve_deps(name, registry, added, visiting)
 	visiting[name] = true
 	local result = {}
 	for _, dep in ipairs(spec.dependencies or {}) do
+		trace(name, "resolving dependency '" .. dep .. "'")
 		for _, s in ipairs(resolve_deps(dep, registry, added, visiting)) do
 			table.insert(result, s)
 		end
 	end
 	if not added[name] then
 		added[name] = true
-		table.insert(result, spec)
+		trace(name, "scheduled for vim.pack.add()")
+		table.insert(result, { name = name, spec = spec })
 	end
 	visiting[name] = nil
 	return result
@@ -454,8 +457,9 @@ local function update_handler(names)
 				table.insert(all_specs, s)
 			end
 		end
-		for _, spec in ipairs(all_specs) do
-			vim.pack.add({ spec })
+		for _, s in ipairs(all_specs) do
+			trace(s.name, "vim.pack.add()")
+			vim.pack.add({ s.spec })
 		end
 	else
 		local added = {}
@@ -468,8 +472,9 @@ local function update_handler(names)
 				table.insert(all_specs, s)
 			end
 		end
-		for _, spec in ipairs(all_specs) do
-			vim.pack.add({ spec })
+		for _, s in ipairs(all_specs) do
+			trace(s.name, "vim.pack.add()")
+			vim.pack.add({ s.spec })
 		end
 	end
 end

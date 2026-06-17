@@ -110,6 +110,9 @@ setup({specs})                                   *autopack-setup*
   |autopack-spec-setup| call, and the trigger replay. This is a global
   switch, not a per-plugin spec field.
 
+  It also traces |autopack-Autopackupdate|/`update()`: each dependency as
+  it is resolved, and each |vim.pack.add()| call.
+
   Example: >
     require("autopack").setup({
         debug = true,

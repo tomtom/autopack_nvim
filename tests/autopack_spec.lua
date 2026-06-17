@@ -1228,6 +1228,37 @@ tap.ok(idx_main42 ~= nil and idx_dep42 < idx_main42,
 	"submodules: the submodule's dependency is added before the plugin itself")
 
 -- ---------------------------------------------------------------------------
+-- Test 43: with a global `debug = true`, update() traces dependency
+--          resolution and each vim.pack.add() call
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._debug = false
+
+autopack.setup({
+	debug = true,
+	{ name = "lib-a", spec = { src = "https://github.com/user/lib-a" } },
+	{
+		name = "main",
+		spec = { src = "https://github.com/user/main" },
+		dependencies = { "lib-a" },
+	},
+})
+
+autopack.update("main")
+
+local joined43 = table.concat(notify_calls, "\n")
+tap.ok(joined43:find("resolving dependency 'lib-a'", 1, true) ~= nil,
+	"debug: traces dependency resolution")
+tap.ok(joined43:find("autopack[lib-a]: vim.pack.add()", 1, true) ~= nil,
+	"debug: traces vim.pack.add() for the dependency")
+tap.ok(joined43:find("autopack[main]: vim.pack.add()", 1, true) ~= nil,
+	"debug: traces vim.pack.add() for the requested plugin")
+
+autopack._debug = false
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
