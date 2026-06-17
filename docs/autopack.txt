@@ -12,7 +12,7 @@ Behavior ......................... |autopack-behavior|
   BufRead patterns .............. |autopack-bufread-patterns|
   VimEnter fallback ............. |autopack-vimenter-fallback|
 Usage ............................ |autopack-usage|
-  register() ................. |autopack-register|
+  setup() ..................... |autopack-setup|
 Specs ............................ |autopack-specs|
   name ........................... |autopack-spec-name|
   init ........................... |autopack-spec-init|
@@ -26,7 +26,7 @@ Specs ............................ |autopack-specs|
   modules ........................ |autopack-spec-modules|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
-  register() ................. |autopack-example-register|
+  setup() ..................... |autopack-example-setup|
 
 ==============================================================================
 Introduction                                    *autopack-introduction*
@@ -43,7 +43,7 @@ to your |init.lua|: >
     vim.pack.add({
         { src = "https://github.com/tomtom/autopack_nvim" },
     })
-    require("autopack").register({ ... })
+    require("autopack").setup({ ... })
 <
 |vim.pack.add()| both downloads and loads the plugin, so no separate
 |:packadd| call is needed.
@@ -98,7 +98,7 @@ VimEnter fallback                         *autopack-vimenter-fallback*
 ==============================================================================
 Usage                                                *autopack-usage*
 
-register({specs})                               *autopack-register*
+setup({specs})                                   *autopack-setup*
   Register one or more plugins. {specs} is a list of tables, each
   with the fields described in |autopack-specs|.
 
@@ -111,7 +111,7 @@ name (string, required unless spec.src given)     *autopack-spec-name*
 
   Can be omitted if |autopack-spec-spec| has a `src` field; the name will be
   derived automatically from the URL. For example: >
-    require("autopack").register({
+    require("autopack").setup({
         { spec = { src = "https://github.com/lewis6991/gitsigns.nvim" } },
     })
 <
@@ -175,12 +175,12 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   are resolved recursively: if A depends on B and B depends on C, the
   addition order will be C, B, A.
 
-  Each dependency name must be registered via |autopack-register| (or
-  |autopack-register|). If a dependency is not registered, an error is
+  Each dependency name must be registered via |autopack-setup| (or
+  |autopack-setup|). If a dependency is not registered, an error is
   raised. Circular dependencies also raise an error.
 
   Example: >
-    require("autopack").register({
+    require("autopack").setup({
         {
             name = "plenary",
             spec = { src = "https://github.com/nvim-lua/plenary.nvim" },
@@ -213,7 +213,7 @@ modules (table, optional)                         *autopack-spec-modules*
   `modules` entry instead.
 
   Example: >
-    require("autopack").register({
+    require("autopack").setup({
         {
             name = "mini.nvim",
             spec = { src = "https://github.com/nvim-mini/mini.nvim" },
@@ -244,7 +244,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
   is interpreted as `{ src = <url> }`.
 
   Example: >
-    require("autopack").register({
+    require("autopack").setup({
         {
             name = "gitsigns",
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
@@ -253,7 +253,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         },
     })
     -- Or as a shorthand string:
-    require("autopack").register({
+    require("autopack").setup({
         {
             spec = "https://github.com/lewis6991/gitsigns.nvim",
             setup = { signcolumn = true },
@@ -282,7 +282,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
 
   With no arguments, every plugin that was registered with a `spec` field is
   updated via |vim.pack.add()|. If no plugins have been registered yet, a
-  notification is shown: "Call register() first. Nothing to do."
+  notification is shown: "Call setup() first. Nothing to do."
 
   With one or more plugin names, only those plugins are updated. If a name
   does not match any registered plugin, an error is raised.
@@ -297,9 +297,9 @@ spec (table|string, optional)                         *autopack-spec-spec*
 ==============================================================================
 Examples                                          *autopack-examples*
 
-register()                               *autopack-example-register*
+setup()                                   *autopack-example-setup*
 >
-    require("autopack").register({
+    require("autopack").setup({
         "https://github.com/nvim-tree/nvim-web-devicons",
         {
             spec = "https://github.com/ibhagwan/fzf-lua", 

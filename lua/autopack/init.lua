@@ -167,13 +167,13 @@ end
 
 M.derive_name = derive_name
 
--- Internal: register a single plugin. Called by M.register() for each spec.
+-- Internal: register a single plugin. Called by M.setup() for each spec.
 -- Normalize opts: accept string URL as shorthand for { spec = { src = url } }.
 local function normalize_opts(opts)
 	if type(opts) == "string" then
 		opts = { spec = { src = opts } }
 	end
-	assert(type(opts) == "table", "autopack.register: opts must be a table or URL string")
+	assert(type(opts) == "table", "autopack.setup: opts must be a table or URL string")
 	-- Normalize spec: string -> { src = string }
 	if type(opts.spec) == "string" then
 		opts.spec = { src = opts.spec }
@@ -181,7 +181,7 @@ local function normalize_opts(opts)
 	return opts
 end
 
-local function register_one(opts)
+local function register(opts)
 	opts = normalize_opts(opts)
 
 	if not opts.name and opts.spec and opts.spec.src then
@@ -189,7 +189,7 @@ local function register_one(opts)
 	end
 
 	assert(type(opts.name) == "string",
-		"autopack.register: `name` is required (or provide `spec.src` to derive it)")
+		"autopack.setup: `name` is required (or provide `spec.src` to derive it)")
 
 	if opts.spec then
 		M._registry[opts.name] = opts.spec
@@ -313,7 +313,7 @@ local function register_one(opts)
 
 	if opts.modules then
 		assert(type(opts.modules) == "table" and not vim.tbl_isempty(opts.modules),
-			"autopack.register: `modules` must be a non-empty table of { [module_name] = { ... } }")
+			"autopack.setup: `modules` must be a non-empty table of { [module_name] = { ... } }")
 		for module_key, mod in pairs(opts.modules) do
 			wire_module(module_key, mod)
 		end
@@ -325,10 +325,10 @@ local function register_one(opts)
 end
 
 -- Register one or more plugins. {specs} is a list of plugin specs.
-function M.register(specs)
+function M.setup(specs)
 	local results = {}
 	for _, opts in ipairs(specs) do
-		table.insert(results, register_one(opts))
+		table.insert(results, register(opts))
 	end
 	return results
 end
@@ -376,7 +376,7 @@ end
 local function update_handler(names)
 	if vim.tbl_isempty(names) then
 		if vim.tbl_isempty(M._registry) then
-			vim.notify("Call register() first. Nothing to do.")
+			vim.notify("Call setup() first. Nothing to do.")
 			return
 		end
 		local added = {}

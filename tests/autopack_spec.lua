@@ -129,13 +129,13 @@ end
 tap.ok(found, "Autopackupdate user command was created immediately (no VimEnter needed)")
 
 -- ---------------------------------------------------------------------------
--- Test 2: register() with spec stores in registry
+-- Test 2: setup() with spec stores in registry
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {} -- ensure clean state
 
-autopack.register({
+autopack.setup({
 	{
 		name = "gitsigns",
 		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
@@ -144,7 +144,7 @@ autopack.register({
 })
 
 tap.ok(autopack._registry["gitsigns"] ~= nil,
-	"register() with spec stores entry in _registry")
+	"setup() with spec stores entry in _registry")
 
 tap.ok(
 	autopack._registry["gitsigns"].src == "https://github.com/lewis6991/gitsigns.nvim",
@@ -152,13 +152,13 @@ tap.ok(
 )
 
 -- ---------------------------------------------------------------------------
--- Test 3: register() without spec does not store in registry
+-- Test 3: setup() without spec does not store in registry
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-autopack.register({
+autopack.setup({
 	{
 		name = "no-spec-plugin",
 		setup = {},
@@ -166,16 +166,16 @@ autopack.register({
 })
 
 tap.ok(autopack._registry["no-spec-plugin"] == nil,
-	"register() without spec does not store in _registry")
+	"setup() without spec does not store in _registry")
 
 -- ---------------------------------------------------------------------------
--- Test 4: register() propagates spec to registry
+-- Test 4: setup() propagates spec to registry
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-autopack.register({
+autopack.setup({
 	{
 		name = "plugin-a",
 		spec = { src = "https://github.com/a/a.nvim" },
@@ -191,11 +191,11 @@ autopack.register({
 })
 
 tap.ok(autopack._registry["plugin-a"] ~= nil,
-	"register() stores spec for plugin-a")
+	"setup() stores spec for plugin-a")
 tap.ok(autopack._registry["plugin-b"] ~= nil,
-	"register() stores spec for plugin-b")
+	"setup() stores spec for plugin-b")
 tap.ok(autopack._registry["plugin-c"] == nil,
-	"register() does not store entry without spec")
+	"setup() does not store entry without spec")
 
 -- ---------------------------------------------------------------------------
 -- Test 5: :Autopackupdate with no registered plugins shows message
@@ -207,7 +207,7 @@ autopack.update(nil) -- simulates no-args
 
 tap.ok(#notify_calls == 1,
 	"update() with empty registry calls vim.notify once")
-tap.ok(notify_calls[1] == "Call register() first. Nothing to do.",
+tap.ok(notify_calls[1] == "Call setup() first. Nothing to do.",
 	"notify message is correct")
 
 -- ---------------------------------------------------------------------------
@@ -383,13 +383,13 @@ tap.ok(dn("https://github.com/tpope/vim-fugitive") == "fugitive",
 	"derive_name strips vim- prefix")
 
 -- ---------------------------------------------------------------------------
--- Test 22: register() with spec.src but no name derives the name
+-- Test 22: setup() with spec.src but no name derives the name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local derived = autopack.register({
+local derived = autopack.setup({
 	{
 		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
 		setup = { signcolumn = true },
@@ -397,16 +397,16 @@ local derived = autopack.register({
 })
 
 tap.ok(derived[1].name == "gitsigns",
-	"register() derives name from spec.src when name is absent")
+	"setup() derives name from spec.src when name is absent")
 
 -- ---------------------------------------------------------------------------
--- Test 16: register() with both name and spec.src preserves name
+-- Test 16: setup() with both name and spec.src preserves name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local preserved = autopack.register({
+local preserved = autopack.setup({
 	{
 		name = "my-gitsigns",
 		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
@@ -414,21 +414,21 @@ local preserved = autopack.register({
 })
 
 tap.ok(preserved[1].name == "my-gitsigns",
-	"register() preserves explicit name when spec.src is also given")
+	"setup() preserves explicit name when spec.src is also given")
 
 -- ---------------------------------------------------------------------------
--- Test 17: register() with neither name nor spec.src errors
+-- Test 17: setup() with neither name nor spec.src errors
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local ok15, err15 = pcall(autopack.register, {
+local ok15, err15 = pcall(autopack.setup, {
 	{ setup = { signcolumn = true } },
 })
 
 tap.ok(not ok15,
-	"register() without name or spec.src raises an error")
+	"setup() without name or spec.src raises an error")
 
 tap.ok(err15 ~= nil and err15:find("name"),
 	"error message mentions 'name'")
@@ -535,63 +535,63 @@ tap.ok(dep_a_idx ~= nil and dep_b_idx ~= nil and dep_a_idx < dep_b_idx,
 	"dependency lib-a added before lib-b")
 
 -- ---------------------------------------------------------------------------
--- Test 22: register() accepts a plain string argument (URL shorthand)
+-- Test 22: setup() accepts a plain string argument (URL shorthand)
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local result = autopack.register({ "https://github.com/user/cool-plugin" })
+local result = autopack.setup({ "https://github.com/user/cool-plugin" })
 
 tap.ok(type(result) == "table",
-	"register({\"https://...\"}) returns a table")
+	"setup({\"https://...\"}) returns a table")
 tap.ok(result[1].name == "cool-plugin",
-	"register({\"https://...\"}) derives name from URL")
+	"setup({\"https://...\"}) derives name from URL")
 tap.ok(result[1].spec ~= nil and result[1].spec.src == "https://github.com/user/cool-plugin",
-	"register({\"https://...\"}) sets spec.src to the URL")
+	"setup({\"https://...\"}) sets spec.src to the URL")
 tap.ok(autopack._registry["cool-plugin"] ~= nil,
-	"register({\"https://...\"}) stores entry in _registry")
+	"setup({\"https://...\"}) stores entry in _registry")
 
 -- ---------------------------------------------------------------------------
--- Test 23: register() accepts spec as string in opts table
+-- Test 23: setup() accepts spec as string in opts table
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local result2 = autopack.register({ { spec = "https://github.com/user/another-plugin.git" } })
+local result2 = autopack.setup({ { spec = "https://github.com/user/another-plugin.git" } })
 
 tap.ok(type(result2) == "table",
-	"register({{spec=string}}) returns a table")
+	"setup({{spec=string}}) returns a table")
 tap.ok(result2[1].spec ~= nil and result2[1].spec.src == "https://github.com/user/another-plugin.git",
-	"register({{spec=string}}) normalizes spec to {src=...}")
+	"setup({{spec=string}}) normalizes spec to {src=...}")
 tap.ok(result2[1].name == "another-plugin",
-	"register({{spec=string}}) derives name from URL")
+	"setup({{spec=string}}) derives name from URL")
 tap.ok(autopack._registry["another-plugin"] ~= nil,
-	"register({{spec=string}}) stores in registry")
+	"setup({{spec=string}}) stores in registry")
 
 -- ---------------------------------------------------------------------------
--- Test 24: register() with string spec creates no stubs
+-- Test 24: setup() with string spec creates no stubs
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-autopack.register({ "https://github.com/user/no-stubs-plugin" })
+autopack.setup({ "https://github.com/user/no-stubs-plugin" })
 
 tap.ok(#user_commands == 0,
-	"register({\"https://...\"}) creates no user command stubs")
+	"setup({\"https://...\"}) creates no user command stubs")
 tap.ok(#autocmds == 0,
-	"register({\"https://...\"}) creates no autocmd stubs")
+	"setup({\"https://...\"}) creates no autocmd stubs")
 
 -- ---------------------------------------------------------------------------
--- Test 25: register() with `modules` creates stubs per module
+-- Test 25: setup() with `modules` creates stubs per module
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-autopack.register({
+autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
@@ -609,7 +609,7 @@ end
 tap.ok(found_minigit, "modules: command stub created for mini.git module")
 
 -- ---------------------------------------------------------------------------
--- Test 26: register() with `modules` shares one :packadd across modules
+-- Test 26: setup() with `modules` shares one :packadd across modules
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -631,7 +631,7 @@ mock_set(vim.keymap, "set", function(mode, lhs, handler)
 	if lhs == "sa" then minisurround_key_handler = handler end
 end)
 
-autopack.register({
+autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
@@ -657,7 +657,7 @@ end)
 mock_set(vim.keymap, "set", function() end)
 
 -- ---------------------------------------------------------------------------
--- Test 27: register() with `modules` calls require() on each module's own name
+-- Test 27: setup() with `modules` calls require() on each module's own name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -676,7 +676,7 @@ mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 	mod_cmd_handlers[name] = handler
 end)
 
-autopack.register({
+autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
@@ -700,13 +700,13 @@ end)
 _G.require = real_require
 
 -- ---------------------------------------------------------------------------
--- Test 28: register() rejects an empty `modules` table
+-- Test 28: setup() rejects an empty `modules` table
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
 autopack._registry = {}
 
-local ok28, err28 = pcall(autopack.register, {
+local ok28, err28 = pcall(autopack.setup, {
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },

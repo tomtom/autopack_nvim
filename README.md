@@ -23,7 +23,7 @@ fires.
 Plugins are then loaded via:
 
 ```
-require("autopack").register({
+require("autopack").setup({
     {
         name = "gitsigns",
         setup = { signcolumn = true },
