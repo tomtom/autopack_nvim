@@ -23,7 +23,7 @@ Specs ............................ |autopack-specs|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
   dependencies ................... |autopack-spec-dependencies|
-  modules ........................ |autopack-spec-modules|
+  submodules ..................... |autopack-spec-submodules|
 Autopackupdate ................ |autopack-Autopackupdate|
 Examples ......................... |autopack-examples|
   setup() ..................... |autopack-example-setup|
@@ -263,10 +263,10 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   added in dependency order. Updating "telescope" above will first add
   "plenary", then "telescope".
 
-modules (table, optional)                         *autopack-spec-modules*
+submodules (table, optional)                   *autopack-spec-submodules*
   For plugins that expose several independently-loadable Lua modules from a
-  single install (e.g. `mini.nvim`), `modules` maps each module's require()
-  path to its own |autopack-spec-keys|, |autopack-spec-commands|,
+  single install (e.g. `mini.nvim`), `submodules` maps each module's
+  require() path to its own |autopack-spec-keys|, |autopack-spec-commands|,
   |autopack-spec-patterns|, and |autopack-spec-setup|.
 
   Each module is loaded independently: only that module's `setup` runs when
@@ -274,16 +274,16 @@ modules (table, optional)                         *autopack-spec-modules*
   only once for the whole plugin, shared across all modules, whichever
   module's trigger fires first.
 
-  When `modules` is given, the top-level `keys`/`commands`/`patterns`/
+  When `submodules` is given, the top-level `keys`/`commands`/`patterns`/
   `setup`/`module` fields are not used; put them inside the relevant
-  `modules` entry instead.
+  `submodules` entry instead.
 
   Example: >
     require("autopack").setup({
         {
             name = "mini.nvim",
             spec = { src = "https://github.com/nvim-mini/mini.nvim" },
-            modules = {
+            submodules = {
                 ["mini.git"] = {
                     keys = { "<leader>gg" },
                     commands = { "MiniGit" },

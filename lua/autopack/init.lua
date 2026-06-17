@@ -68,7 +68,7 @@ end
 -- loaders
 --   pack loader:   one-shot :packadd, shared by every module of a plugin.
 --   module loader: one-shot setup, one per module (or one for the
---                   whole plugin when it has no `modules` table).
+--                   whole plugin when it has no `submodules` table).
 -- ---------------------------------------------------------------------------
 
 -- :packadd + `init` hook, run at most once no matter which module triggers it.
@@ -93,9 +93,9 @@ local function make_pack_loader(name, init)
 end
 
 -- Resolve the Lua module name to require() for a given module entry.
--- `module_key` is the key the entry was registered under in `modules`
+-- `module_key` is the key the entry was registered under in `submodules`
 -- (already the require() path); falls back to `mod.module` or a name
--- derived from the plugin name for the single-module (no `modules`) case.
+-- derived from the plugin name for the single-module (no `submodules`) case.
 local function resolve_module(name, module_key, mod)
 	if module_key then
 		return module_key
@@ -200,7 +200,7 @@ local function register(opts)
 	local ensure_pack_loaded = make_pack_loader(opts.name, opts.init)
 
 	-- Wire one module's keys/commands/patterns to its own one-shot loader.
-	-- `module_key` is nil for the single-module (no `modules` table) case.
+	-- `module_key` is nil for the single-module (no `submodules` table) case.
 	local function wire_module(module_key, mod)
 		mod._keymaps = {}
 		mod._commands = {}
@@ -311,10 +311,10 @@ local function register(opts)
 		end
 	end
 
-	if opts.modules then
-		assert(type(opts.modules) == "table" and not vim.tbl_isempty(opts.modules),
-			"autopack.setup: `modules` must be a non-empty table of { [module_name] = { ... } }")
-		for module_key, mod in pairs(opts.modules) do
+	if opts.submodules then
+		assert(type(opts.submodules) == "table" and not vim.tbl_isempty(opts.submodules),
+			"autopack.setup: `submodules` must be a non-empty table of { [module_name] = { ... } }")
+		for module_key, mod in pairs(opts.submodules) do
 			wire_module(module_key, mod)
 		end
 	else

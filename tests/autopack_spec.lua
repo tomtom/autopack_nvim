@@ -585,7 +585,7 @@ tap.ok(#autocmds == 0,
 	"setup({\"https://...\"}) creates no autocmd stubs")
 
 -- ---------------------------------------------------------------------------
--- Test 25: setup() with `modules` creates stubs per module
+-- Test 25: setup() with `submodules` creates stubs per module
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -595,7 +595,7 @@ autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
-		modules = {
+		submodules = {
 			["mini.git"] = { commands = { "MiniGit" } },
 			["mini.surround"] = { keys = { "sa" } },
 		},
@@ -606,10 +606,10 @@ local found_minigit = false
 for _, cmd in ipairs(user_commands) do
 	if cmd.name == "MiniGit" then found_minigit = true end
 end
-tap.ok(found_minigit, "modules: command stub created for mini.git module")
+tap.ok(found_minigit, "submodules: command stub created for mini.git module")
 
 -- ---------------------------------------------------------------------------
--- Test 26: setup() with `modules` shares one :packadd across modules
+-- Test 26: setup() with `submodules` shares one :packadd across submodules
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -635,7 +635,7 @@ autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
-		modules = {
+		submodules = {
 			["mini.git"] = { commands = { "MiniGit" } },
 			["mini.surround"] = { keys = { "sa" } },
 		},
@@ -646,9 +646,9 @@ minigit_cmd_handler({ args = "", range = 0, bang = false, mods = "" })
 minisurround_key_handler()
 
 tap.ok(#packadd_calls == 1,
-	"modules: :packadd runs once total, shared across both module triggers")
+	"submodules: :packadd runs once total, shared across both module triggers")
 tap.ok(packadd_calls[1] == "packadd mini.nvim",
-	"modules: :packadd uses the shared plugin name")
+	"submodules: :packadd uses the shared plugin name")
 
 mock_set(vim, "cmd", real_cmd)
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
@@ -657,7 +657,7 @@ end)
 mock_set(vim.keymap, "set", function() end)
 
 -- ---------------------------------------------------------------------------
--- Test 27: setup() with `modules` calls require() on each module's own name
+-- Test 27: setup() with `submodules` calls require() on each module's own name
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -680,7 +680,7 @@ autopack.setup({
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
-		modules = {
+		submodules = {
 			["mini.git"] = { commands = { "MiniGit" }, setup = true },
 			["mini.surround"] = { commands = { "MiniSurround" }, setup = true },
 		},
@@ -692,7 +692,7 @@ mod_cmd_handlers["MiniSurround"]({ args = "", range = 0, bang = false, mods = ""
 
 tap.ok(required_modules[1] == "mini.git" and required_modules[2] == "mini.surround"
 	or required_modules[1] == "mini.surround" and required_modules[2] == "mini.git",
-	"modules: each module's setup requires its own module name")
+	"submodules: each module's setup requires its own module name")
 
 mock_set(vim.api, "nvim_create_user_command", function(name, handler, opts)
 	table.insert(user_commands, { name = name, handler = handler, opts = opts })
@@ -700,7 +700,7 @@ end)
 _G.require = real_require
 
 -- ---------------------------------------------------------------------------
--- Test 28: setup() rejects an empty `modules` table
+-- Test 28: setup() rejects an empty `submodules` table
 -- ---------------------------------------------------------------------------
 
 reset_mocks()
@@ -710,13 +710,13 @@ local ok28, err28 = pcall(autopack.setup, {
 	{
 		name = "mini.nvim",
 		spec = { src = "https://github.com/nvim-mini/mini.nvim" },
-		modules = {},
+		submodules = {},
 	},
 })
 
-tap.ok(not ok28, "modules: empty `modules` table raises an error")
-tap.ok(err28 ~= nil and err28:find("modules"),
-	"modules: error message mentions 'modules'")
+tap.ok(not ok28, "submodules: empty `submodules` table raises an error")
+tap.ok(err28 ~= nil and err28:find("submodules"),
+	"submodules: error message mentions 'submodules'")
 
 -- ---------------------------------------------------------------------------
 -- Done
