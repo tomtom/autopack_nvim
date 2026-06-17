@@ -154,8 +154,11 @@ module (string, optional)                         *autopack-spec-module*
 setup (function|table|true, optional)             *autopack-spec-setup*
   Code that runs AFTER |:packadd|. The behaviour depends on the type:
     - function ~
-      Called as-is with no arguments. Use this for full control, e.g. when a
-      plugin needs more than a single `.setup()` call.
+      Called with the `require(module)`'d module table (or `nil` if
+      `require()` failed, e.g. a Vimscript plugin with no Lua module). Use
+      this for full control, e.g. when a plugin needs more than a single
+      `.setup()` call, or when part of the config can only be built from
+      the module itself (see example below).
     - table ~
       Calls `require(module).setup({setup})`. The module name defaults to
       the plugin name with a trailing `.nvim` or `.vim` suffix removed; see
@@ -170,9 +173,17 @@ setup (function|table|true, optional)             *autopack-spec-setup*
         { name = "gitsigns.nvim", setup = { signcolumn = true } },
         { name = "nvim-autopairs", setup = true },
         {
-            name = "neoformat",
-            setup = function()
-                vim.g.neoformat_enabled_lua = { "stylua" }
+            name = "mini.hipatterns",
+            startup = true,
+            -- hipatterns.gen_highlighter only exists after require(), so
+            -- this part of the config can't be a plain table.
+            setup = function(hipatterns)
+                hipatterns.setup({
+                    highlighters = {
+                        fixme = { pattern = "%f[%w]()FIXME()%f[%W]", group = "MiniHipatternsFixme" },
+                        hex_color = hipatterns.gen_highlighter.hex_color(),
+                    },
+                })
             end,
         },
     })

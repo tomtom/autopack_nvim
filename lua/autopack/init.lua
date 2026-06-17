@@ -132,12 +132,15 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 		ensure_pack_loaded()
 
 		-- (6) Optional post-load setup:
-		--       setup = function -> called as-is (do your own require().setup{})
+		--       setup = function -> called with the required module (or nil if
+		--                           require() failed, e.g. no Lua module exists)
 		--       setup = table    -> require(module).setup(table)
 		--       setup = true     -> require(module).setup()
 		local s = mod.setup
 		if type(s) == "function" then
-			s()
+			local module = resolve_module(name, module_key, mod)
+			local ok, m = pcall(require, module)
+			s(ok and m or nil)
 		elseif s == true or type(s) == "table" then
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)

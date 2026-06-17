@@ -799,6 +799,62 @@ end)
 _G.require = real_require30
 
 -- ---------------------------------------------------------------------------
+-- Test 31: function `setup` receives the required module table
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local fake_module31 = { setup = function() end, gen_highlighter = {} }
+local real_require31 = require
+_G.require = function() return fake_module31 end
+
+local received31
+autopack.setup({
+	{
+		name = "mini.hipatterns",
+		startup = true,
+		setup = function(m)
+			received31 = m
+		end,
+	},
+})
+
+tap.ok(received31 == fake_module31,
+	"function setup: receives the require()'d module as its argument")
+
+_G.require = real_require31
+
+-- ---------------------------------------------------------------------------
+-- Test 32: function `setup` receives nil when require() fails
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+local real_require32 = require
+_G.require = function() error("module not found") end
+
+local received32, call_count32 = "unset", 0
+autopack.setup({
+	{
+		name = "vim-fugitive",
+		startup = true,
+		setup = function(m)
+			received32 = m
+			call_count32 = call_count32 + 1
+		end,
+	},
+})
+
+tap.ok(received32 == nil,
+	"function setup: receives nil when require() fails")
+tap.ok(call_count32 == 1,
+	"function setup: still runs once even when require() fails")
+
+_G.require = real_require32
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
