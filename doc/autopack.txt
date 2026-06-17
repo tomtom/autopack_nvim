@@ -14,11 +14,11 @@ Behavior ......................... |autopack-behavior|
 Usage ............................ |autopack-usage|
   setup() ..................... |autopack-setup|
 Specs ............................ |autopack-specs|
-  name ........................... |autopack-spec-name|
-  init ........................... |autopack-spec-init|
-  module ......................... |autopack-spec-module|
-  setup ......................... |autopack-spec-setup|
   spec ........................... |autopack-spec-spec|
+  name ........................... |autopack-spec-name|
+  module ......................... |autopack-spec-module|
+  init ........................... |autopack-spec-init|
+  setup ......................... |autopack-spec-setup|
   keys ........................... |autopack-spec-keys|
   commands ....................... |autopack-spec-commands|
   patterns ....................... |autopack-spec-patterns|
@@ -106,14 +106,85 @@ setup({specs})                                   *autopack-setup*
 ==============================================================================
 Specs                                              *autopack-specs*
 
+spec (table|string, optional)                         *autopack-spec-spec*
+  The preferred way to register a plugin: a pack specification in
+  |vim.pack.add()| format. autopack stores it in its internal registry for
+  use with |:Autopackupdate|, and — since it has a `src` field — derives
+  |autopack-spec-name| automatically, so no other field is needed to
+  identify the plugin.
+
+  Can be a table (with `src` and other fields) or a plain URL string, which
+  is interpreted as `{ src = <url> }`.
+
+  Example: >
+    require("autopack").setup({
+        {
+            spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
+            setup = { signcolumn = true },
+            keys = { "<leader>gs" },
+        },
+    })
+    -- Or as a shorthand string:
+    require("autopack").setup({
+        {
+            spec = "https://github.com/lewis6991/gitsigns.nvim",
+            setup = { signcolumn = true },
+            keys = { "<leader>gs" },
+        },
+    })
+<
+  The spec is a table that may contain any field accepted by |vim.pack.add()|,
+  such as `src`, `host`, `scm`, `branch`, `tag`, `pin`, etc. autopack does
+  not interpret these fields — it passes them through to |vim.pack.add()|
+  when |:Autopackupdate| is invoked.
+
+  |vim.pack.add()| both installs new packs and updates existing ones, so
+  running |:Autopackupdate| ensures all registered plugins are up to date.
+
 name (string, required unless spec.src given)     *autopack-spec-name*
   The directory name under `pack/*/opt/`. This is the argument passed to
-  |:packadd|.
+  |:packadd|, so it must match exactly what the plugin is installed under.
 
-  Can be omitted if |autopack-spec-spec| has a `src` field; the name will be
-  derived automatically from the URL. For example: >
+  Not needed when |autopack-spec-spec| has a `src` field: |vim.pack.add()|
+  installs under the literal repo name, so autopack derives `name`
+  automatically from the URL. You only need to set `name` explicitly if the
+  plugin was NOT installed via |autopack-spec-spec| but some other way —
+  e.g. a manual `git clone` into `pack/*/opt/`, or any other external
+  install mechanism. In that case `name` must match the directory you
+  installed it under.
+
+  When a `spec` is also given, `name` doubles as the registry key used for
+  |autopack-spec-dependencies| and |autopack-Autopackupdate|.
+
+  Example: >
     require("autopack").setup({
-        { spec = { src = "https://github.com/lewis6991/gitsigns.nvim" } },
+        {
+            name = "vim-fugitive", -- installed manually, not via `spec`
+            commands = { "Git", "Gdiffsplit" },
+        },
+    })
+<
+
+module (string, optional)                         *autopack-spec-module*
+  Explicit Lua module name to `require()` for |autopack-spec-setup|,
+  whichever form it takes (function, table, or `true`). If omitted, the
+  module name is derived from the plugin name by stripping a trailing
+  `.nvim` or `.vim` suffix. For example, `gitsigns.nvim` becomes `gitsigns`.
+
+  Like |autopack-spec-name|, this is normally only needed for a plugin
+  installed outside of |autopack-spec-spec| (e.g. via a manual `git clone`)
+  whose directory name doesn't follow the `<repo>.nvim` convention the
+  default derivation assumes — for example a custom directory name, or a
+  repo (like `LuaSnip`) whose casing doesn't match its module name.
+
+  Example: >
+    require("autopack").setup({
+        {
+            name = "LuaSnip", -- installed manually, not via `spec`
+            module = "luasnip",
+            setup = true,
+            keys = { "<Tab>" },
+        },
     })
 <
 
@@ -130,23 +201,6 @@ init (function, optional)                         *autopack-spec-init*
                 vim.g.polyglot_disabled = { "markdown" }
             end,
             patterns = { "*" },
-        },
-    })
-<
-
-module (string, optional)                         *autopack-spec-module*
-  Explicit Lua module name used when |autopack-spec-setup| is a table. If
-  omitted, the module name is derived from the plugin name by stripping a
-  trailing `.nvim` or `.vim` suffix. For example, `gitsigns.nvim` becomes
-  `gitsigns`.
-
-  Example: >
-    require("autopack").setup({
-        {
-            name = "LuaSnip",
-            module = "luasnip",
-            setup = true,
-            keys = { "<Tab>" },
         },
     })
 <
@@ -328,40 +382,6 @@ submodules (table, optional)                   *autopack-spec-submodules*
   Pressing `<leader>gg` loads `mini.nvim` (once) and runs
   `require("mini.git").setup()`. Later pressing `sa` reuses the already
   loaded plugin and runs `require("mini.surround").setup({})`.
-
-spec (table|string, optional)                         *autopack-spec-spec*
-  A pack specification in |vim.pack.add()| format. When provided, the spec
-  is stored in autopack's internal registry for use with the |:Autopackupdate|
-  command.
-
-  Can be a table (with `src` and other fields) or a plain URL string, which
-  is interpreted as `{ src = <url> }`.
-
-  Example: >
-    require("autopack").setup({
-        {
-            name = "gitsigns",
-            spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-            setup = { signcolumn = true },
-            keys = { "<leader>gs" },
-        },
-    })
-    -- Or as a shorthand string:
-    require("autopack").setup({
-        {
-            spec = "https://github.com/lewis6991/gitsigns.nvim",
-            setup = { signcolumn = true },
-            keys = { "<leader>gs" },
-        },
-    })
-<
-  The spec is a table that may contain any field accepted by |vim.pack.add()|,
-  such as `src`, `host`, `scm`, `branch`, `tag`, `pin`, etc. autopack does
-  not interpret these fields — it passes them through to |vim.pack.add()|
-  when |:Autopackupdate| is invoked.
-
-  |vim.pack.add()| both installs new packs and updates existing ones, so
-  running |:Autopackupdate| ensures all registered plugins are up to date.
 
 ==============================================================================
 :Autopackupdate                                 *autopack-Autopackupdate*

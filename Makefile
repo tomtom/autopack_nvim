@@ -1,4 +1,4 @@
-.PHONY: all test lint push pull
+.PHONY: all test lint doc push pull
 
 all: lint test
 
@@ -7,6 +7,9 @@ test:
 
 lint:
 	luacheck lua/ tests/
+
+doc:
+	nvim --headless -c "helptags doc" -c "quit"
 
 push:
 	git push origin
