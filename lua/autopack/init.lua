@@ -218,10 +218,20 @@ local function register(opts)
 		"autopack.setup: `name` is required (or provide `spec.src` to derive it)")
 
 	if opts.spec then
-		-- `dependencies` is declared as a sibling of `spec` in a plugin's
-		-- top-level opts (see autopack-spec-dependencies), but resolve_deps()
-		-- reads it off the registry entry, so it must travel with the spec.
-		opts.spec.dependencies = opts.dependencies
+		-- `dependencies` can be declared as a sibling of `spec` on the
+		-- top-level opts, and/or inside individual `submodules` entries
+		-- (see autopack-spec-dependencies). resolve_deps() reads it off
+		-- the registry entry, so all of them must travel with the spec.
+		local deps = {}
+		for _, dep in ipairs(opts.dependencies or {}) do
+			table.insert(deps, dep)
+		end
+		for _, mod in pairs(opts.submodules or {}) do
+			for _, dep in ipairs(mod.dependencies or {}) do
+				table.insert(deps, dep)
+			end
+		end
+		opts.spec.dependencies = deps
 		M._registry[opts.name] = opts.spec
 	end
 

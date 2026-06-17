@@ -352,6 +352,10 @@ dependencies (list, optional)               *autopack-spec-dependencies*
   |autopack-setup|). If a dependency is not registered, an error is
   raised. Circular dependencies also raise an error.
 
+  Can also be set inside an individual |autopack-spec-submodules| entry:
+  it is merged into the parent plugin's dependency list, so updating the
+  plugin installs/updates dependencies declared by any of its submodules.
+
   Example: >
     require("autopack").setup({
         {

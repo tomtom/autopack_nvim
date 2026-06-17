@@ -1184,6 +1184,50 @@ _G.require = real_require41
 autopack._debug = false
 
 -- ---------------------------------------------------------------------------
+-- Test 42: a `dependencies` field declared inside a `submodules` entry is
+--          merged into the parent plugin's registered spec, so update()
+--          resolves it (regression: only the top-level `dependencies`
+--          field used to be honored)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+
+autopack.setup({
+	{
+		name = "friendly-snippets",
+		spec = { src = "https://github.com/user/friendly-snippets" },
+	},
+	{
+		name = "mini.nvim",
+		spec = { src = "https://github.com/user/mini.nvim" },
+		submodules = {
+			["mini.snippets"] = {
+				dependencies = { "friendly-snippets" },
+				setup = true,
+			},
+		},
+	},
+})
+
+autopack.update("mini.nvim")
+
+local dep_srcs42 = {}
+for _, call in ipairs(pack_add_calls) do
+	for _, spec in ipairs(call) do
+		table.insert(dep_srcs42, spec.src)
+	end
+end
+
+local idx_dep42 = find_idx(dep_srcs42, "https://github.com/user/friendly-snippets")
+local idx_main42 = find_idx(dep_srcs42, "https://github.com/user/mini.nvim")
+
+tap.ok(idx_dep42 ~= nil,
+	"submodules: a dependency declared inside a submodule entry is added")
+tap.ok(idx_main42 ~= nil and idx_dep42 < idx_main42,
+	"submodules: the submodule's dependency is added before the plugin itself")
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
