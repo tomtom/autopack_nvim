@@ -26,7 +26,7 @@ Plugins are then loaded via:
 require("autopack").register({
     {
         name = "gitsigns",
-        config = { signcolumn = true },
+        setup = { signcolumn = true },
         keys = { "<leader>gs" },
         commands = { "Gitsigns" },
     },
@@ -37,7 +37,7 @@ require("autopack").register({
     },
     {
         name = "telescope",
-        config = { defaults = { layout_strategy = "flex" } },
+        setup = { defaults = { layout_strategy = "flex" } },
         keys = { "<leader>ff", "<leader>fg" },
         commands = { "Telescope" },
     },

@@ -16,7 +16,6 @@ Usage ............................ |autopack-usage|
 Specs ............................ |autopack-specs|
   name ........................... |autopack-spec-name|
   init ........................... |autopack-spec-init|
-  config ......................... |autopack-spec-config|
   module ......................... |autopack-spec-module|
   setup ......................... |autopack-spec-setup|
   spec ........................... |autopack-spec-spec|
@@ -62,7 +61,7 @@ Trigger flow                                   *autopack-trigger-flow*
        this plugin so they no longer intercept.
     2. Run the |autopack-spec-init| function (if set).
     3. Execute |:packadd| with the plugin name.
-    4. Run the |autopack-spec-config| function or table-setup (if set).
+    4. Run the |autopack-spec-setup| function or table-setup (if set).
     5. Replay the exact key or command that triggered the load.
 
 Key replay                                     *autopack-key-replay*
@@ -122,27 +121,25 @@ init (function, optional)                         *autopack-spec-init*
   that Vimscript plugins read at source time (before their plugin/ files are
   sourced).
 
-config (function|table, optional)                 *autopack-spec-config*
-  Code that runs AFTER |:packadd|. The behaviour depends on the type:
-    - function ~
-      Called as-is with no arguments. Use this for full control over setup.
-    - table ~
-      Calls `require(module).setup({config})`. The module name defaults to
-      the plugin name with a trailing `.nvim` or `.vim` suffix removed; see
-      |autopack-spec-module|.
-
 module (string, optional)                         *autopack-spec-module*
-  Explicit Lua module name used when |autopack-spec-config| is a table. If
+  Explicit Lua module name used when |autopack-spec-setup| is a table. If
   omitted, the module name is derived from the plugin name by stripping a
   trailing `.nvim` or `.vim` suffix. For example, `gitsigns.nvim` becomes
   `gitsigns`.
 
-setup (boolean, optional)                        *autopack-spec-setup*
-  When `true`, forces `require(module).setup()` with no arguments after
-  |:packadd|. This is useful for plugins that register themselves during
-  `require()` but still need `.setup()` called for configuration. If
-  |autopack-spec-config| is also provided as a table, it takes precedence
-  over this flag.
+setup (function|table|true, optional)             *autopack-spec-setup*
+  Code that runs AFTER |:packadd|. The behaviour depends on the type:
+    - function ~
+      Called as-is with no arguments. Use this for full control, e.g. when a
+      plugin needs more than a single `.setup()` call.
+    - table ~
+      Calls `require(module).setup({setup})`. The module name defaults to
+      the plugin name with a trailing `.nvim` or `.vim` suffix removed; see
+      |autopack-spec-module|.
+    - `true` ~
+      Calls `require(module).setup()` with no arguments. Useful for plugins
+      that register themselves during `require()` but still need `.setup()`
+      called for configuration.
 
 keys (list, optional)                             *autopack-spec-keys*
   A list of key mappings that trigger loading. Each entry can be:
@@ -204,16 +201,16 @@ modules (table, optional)                         *autopack-spec-modules*
   For plugins that expose several independently-loadable Lua modules from a
   single install (e.g. `mini.nvim`), `modules` maps each module's require()
   path to its own |autopack-spec-keys|, |autopack-spec-commands|,
-  |autopack-spec-patterns|, |autopack-spec-config|, and |autopack-spec-setup|.
+  |autopack-spec-patterns|, and |autopack-spec-setup|.
 
-  Each module is loaded independently: only that module's `config`/`setup`
-  runs when one of its triggers fires. |:packadd| (and |autopack-spec-init|)
-  still run only once for the whole plugin, shared across all modules,
-  whichever module's trigger fires first.
+  Each module is loaded independently: only that module's `setup` runs when
+  one of its triggers fires. |:packadd| (and |autopack-spec-init|) still run
+  only once for the whole plugin, shared across all modules, whichever
+  module's trigger fires first.
 
   When `modules` is given, the top-level `keys`/`commands`/`patterns`/
-  `config`/`setup`/`module` fields are not used; put them inside the
-  relevant `modules` entry instead.
+  `setup`/`module` fields are not used; put them inside the relevant
+  `modules` entry instead.
 
   Example: >
     require("autopack").register({
@@ -228,7 +225,7 @@ modules (table, optional)                         *autopack-spec-modules*
                 },
                 ["mini.surround"] = {
                     keys = { "sa", "sd" },
-                    config = {},
+                    setup = {},
                 },
             },
         },
@@ -251,7 +248,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
         {
             name = "gitsigns",
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-            config = { signcolumn = true },
+            setup = { signcolumn = true },
             keys = { "<leader>gs" },
         },
     })
@@ -259,7 +256,7 @@ spec (table|string, optional)                         *autopack-spec-spec*
     require("autopack").register({
         {
             spec = "https://github.com/lewis6991/gitsigns.nvim",
-            config = { signcolumn = true },
+            setup = { signcolumn = true },
             keys = { "<leader>gs" },
         },
     })
@@ -312,7 +309,7 @@ register()                               *autopack-example-register*
         {
             name = "gitsigns",
             spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-            config = { signcolumn = true },
+            setup = { signcolumn = true },
             keys = { "<leader>gs" },
             commands = { "Gitsigns" },
         },
@@ -325,7 +322,7 @@ register()                               *autopack-example-register*
         {
             name = "telescope",
             spec = { src = "https://github.com/nvim-telescope/telescope.nvim" },
-            config = { defaults = { layout_strategy = "flex" } },
+            setup = { defaults = { layout_strategy = "flex" } },
             keys = { "<leader>ff", "<leader>fg" },
             commands = { "Telescope" },
         },

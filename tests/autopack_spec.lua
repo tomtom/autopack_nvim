@@ -139,7 +139,7 @@ autopack.register({
 	{
 		name = "gitsigns",
 		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-		config = { signcolumn = true },
+		setup = { signcolumn = true },
 	},
 })
 
@@ -161,7 +161,7 @@ autopack._registry = {}
 autopack.register({
 	{
 		name = "no-spec-plugin",
-		config = {},
+		setup = {},
 	},
 })
 
@@ -392,7 +392,7 @@ autopack._registry = {}
 local derived = autopack.register({
 	{
 		spec = { src = "https://github.com/lewis6991/gitsigns.nvim" },
-		config = { signcolumn = true },
+		setup = { signcolumn = true },
 	},
 })
 
@@ -424,7 +424,7 @@ reset_mocks()
 autopack._registry = {}
 
 local ok15, err15 = pcall(autopack.register, {
-	{ config = { signcolumn = true } },
+	{ setup = { signcolumn = true } },
 })
 
 tap.ok(not ok15,

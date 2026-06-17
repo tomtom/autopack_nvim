@@ -67,7 +67,7 @@ end
 -- ---------------------------------------------------------------------------
 -- loaders
 --   pack loader:   one-shot :packadd, shared by every module of a plugin.
---   module loader: one-shot config/setup, one per module (or one for the
+--   module loader: one-shot setup, one per module (or one for the
 --                   whole plugin when it has no `modules` table).
 -- ---------------------------------------------------------------------------
 
@@ -131,26 +131,26 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
 		ensure_pack_loaded()
 
-		-- (6) Optional post-load config:
-		--       config = function -> called as-is (do your own require().setup{})
-		--       config = table    -> require(module).setup(table)
-		--       setup  = true     -> require(module).setup()
-		local c = mod.config
-		if type(c) == "function" then
-			c()
-		elseif c ~= nil or mod.setup then
+		-- (6) Optional post-load setup:
+		--       setup = function -> called as-is (do your own require().setup{})
+		--       setup = table    -> require(module).setup(table)
+		--       setup = true     -> require(module).setup()
+		local s = mod.setup
+		if type(s) == "function" then
+			s()
+		elseif s == true or type(s) == "table" then
 			local module = resolve_module(name, module_key, mod)
 			local ok, m = pcall(require, module)
 			if not ok then
 				error(string.format(
 					"autopack: require('%s') failed for plugin '%s'.\n"
 						.. "If this is a Vimscript plugin it has no Lua module: drop "
-						.. "`config`/`setup`/`module` and use `init` for vim.g.* settings.\n%s",
+						.. "`setup`/`module` and use `init` for vim.g.* settings.\n%s",
 					module, name, m
 				))
 			end
 			if type(m) == "table" and type(m.setup) == "function" then
-				m.setup(type(c) == "table" and c or nil)
+				m.setup(type(s) == "table" and s or nil)
 			end
 		end
 
