@@ -97,6 +97,8 @@ local function make_pack_loader(name, init)
 		end
 		loaded = true
 
+		trace(name, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
+
 		-- Optional pre-load hook: runs BEFORE packadd. This is where
 		-- Vimscript plugins want their vim.g.* options (read at source time).
 		if type(init) == "function" then
@@ -147,7 +149,7 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded)
 		end
 
 		-- (4)+(5) Ensure the plugin itself is installed (shared across modules).
-		trace(label, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
+		-- ensure_pack_loaded() traces its own one-shot :packadd internally.
 		ensure_pack_loaded()
 
 		-- (6) Optional post-load setup:

@@ -1145,6 +1145,45 @@ tap.ok(err40 ~= nil and err40:find("missing%-dep"),
 	"setup(): error message mentions the missing dependency name")
 
 -- ---------------------------------------------------------------------------
+-- Test 41: with several submodules using `startup = true`, the shared
+--          :packadd is traced only once, not once per submodule
+--          (regression: ensure_pack_loaded() is one-shot, but the trace
+--          call used to sit outside that guard)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._debug = false
+
+local real_require41 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	debug = true,
+	{
+		name = "mini.nvim",
+		submodules = {
+			["mini.cursorword"] = { startup = true, setup = true },
+			["mini.indentscope"] = { startup = true, setup = true },
+			["mini.pairs"] = { startup = true, setup = true },
+		},
+	},
+})
+
+local packadd_trace_count41 = 0
+for _, msg in ipairs(notify_calls) do
+	if msg:find(":packadd", 1, true) then
+		packadd_trace_count41 = packadd_trace_count41 + 1
+	end
+end
+
+tap.ok(packadd_trace_count41 == 1,
+	"debug: the shared :packadd is traced exactly once across all startup submodules")
+
+_G.require = real_require41
+autopack._debug = false
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 
