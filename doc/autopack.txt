@@ -122,6 +122,38 @@ setup({specs})                                   *autopack-setup*
         },
     })
 <
+  {specs} may also have an `unknown` (string) field, alongside the list of
+  plugin tables, controlling what happens when a registered trigger fires
+  for a plugin that turns out not to be installed (|:packadd| fails with
+  `E919: Directory not found in 'packpath'`). Like `debug`, this is a
+  global switch, not a per-plugin spec field. One of:
+    - `"error"` (default) ~
+      Raises a clear autopack error explaining the plugin isn't installed.
+    - `"warn"` ~
+      Emits a WARN-level |vim.notify()| message and skips the load (no
+      |autopack-spec-setup|, no trigger replay).
+    - `"install"` ~
+      Calls |vim.pack.add()| with the plugin's registered
+      |autopack-spec-spec| to install it immediately, then continues with
+      the normal load. Raises an error if the plugin has no `spec`
+      registered (there is nothing to install from).
+    - `"ignore"` ~
+      Silently skips the load, like `"warn"` but without the notification.
+
+  Any |:packadd| failure that is NOT caused by a missing install (e.g. a
+  genuine bug in the plugin's own `plugin/` files) is always raised as-is,
+  regardless of `unknown`.
+
+  Example: >
+    require("autopack").setup({
+        unknown = "warn",
+        {
+            name = "gitsigns.nvim",
+            setup = { signcolumn = true },
+            nmaps = { "<leader>gs" },
+        },
+    })
+<
 
 ==============================================================================
 Specs                                              *autopack-specs*

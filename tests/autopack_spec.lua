@@ -1380,6 +1380,244 @@ tap.ok(err45 ~= nil and err45:find("missing%-dep"),
 mock_set(vim.keymap, "set", function() end)
 
 -- ---------------------------------------------------------------------------
+-- Test 46: `unknown` defaults to "error": triggering a load for an
+--          uninstalled plugin raises a clear autopack error
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "error"
+
+local key_handler46
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>nn" then key_handler46 = handler end
+end)
+local real_cmd46 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E919: Directory not found in 'packpath': \"pack/*/opt/not-installed\"")
+end)
+
+autopack.setup({
+	{
+		name = "not-installed",
+		nmaps = { "<leader>nn" },
+	},
+})
+
+local ok46, err46 = pcall(key_handler46)
+tap.ok(not ok46, "unknown=error (default): triggering load for an uninstalled plugin raises an error")
+tap.ok(err46 ~= nil and err46:find("not installed", 1, true) ~= nil,
+	"unknown=error (default): error message says the plugin is not installed")
+
+mock_set(vim, "cmd", real_cmd46)
+mock_set(vim.keymap, "set", function() end)
+
+-- ---------------------------------------------------------------------------
+-- Test 47: `unknown = "warn"` notifies instead of raising, and skips setup()
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "warn"
+
+local key_handler47
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>nw" then key_handler47 = handler end
+end)
+local real_cmd47 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E919: Directory not found in 'packpath': \"pack/*/opt/not-installed-warn\"")
+end)
+
+local setup_called47 = false
+autopack.setup({
+	{
+		name = "not-installed-warn",
+		nmaps = { "<leader>nw" },
+		setup = function() setup_called47 = true end,
+	},
+})
+
+local ok47 = pcall(key_handler47)
+tap.ok(ok47, "unknown=warn: triggering load for an uninstalled plugin does not raise")
+tap.ok(#notify_calls == 1 and notify_calls[1]:find("not installed", 1, true) ~= nil,
+	"unknown=warn: emits a WARN notification saying the plugin is not installed")
+tap.ok(not setup_called47, "unknown=warn: setup() does not run when the plugin isn't installed")
+
+mock_set(vim, "cmd", real_cmd47)
+mock_set(vim.keymap, "set", function() end)
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
+-- Test 48: `unknown = "ignore"` silently skips the load, no notify/error
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "ignore"
+
+local key_handler48
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>ni" then key_handler48 = handler end
+end)
+local real_cmd48 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E919: Directory not found in 'packpath': \"pack/*/opt/not-installed-ignore\"")
+end)
+
+local setup_called48 = false
+autopack.setup({
+	{
+		name = "not-installed-ignore",
+		nmaps = { "<leader>ni" },
+		setup = function() setup_called48 = true end,
+	},
+})
+
+local ok48 = pcall(key_handler48)
+tap.ok(ok48, "unknown=ignore: triggering load for an uninstalled plugin does not raise")
+tap.ok(#notify_calls == 0, "unknown=ignore: emits no notification")
+tap.ok(not setup_called48, "unknown=ignore: setup() does not run when the plugin isn't installed")
+
+mock_set(vim, "cmd", real_cmd48)
+mock_set(vim.keymap, "set", function() end)
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
+-- Test 49: `unknown = "install"` installs the registered spec, then
+--          proceeds with the normal load (require/setup/replay)
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "install"
+
+local key_handler49
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>nu" then key_handler49 = handler end
+end)
+local real_cmd49 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E919: Directory not found in 'packpath': \"pack/*/opt/installable\"")
+end)
+
+local real_require49 = require
+_G.require = function() return { setup = function() end } end
+
+autopack.setup({
+	{
+		name = "installable",
+		spec = { src = "https://github.com/user/installable" },
+		nmaps = { "<leader>nu" },
+		setup = true,
+	},
+})
+
+local ok49 = pcall(key_handler49)
+tap.ok(ok49, "unknown=install: triggering load for an uninstalled plugin does not raise")
+tap.ok(#pack_add_calls == 1, "unknown=install: calls vim.pack.add() to install the plugin")
+tap.ok(pack_add_calls[1][1].src == "https://github.com/user/installable",
+	"unknown=install: installs using the plugin's registered spec")
+
+_G.require = real_require49
+mock_set(vim, "cmd", real_cmd49)
+mock_set(vim.keymap, "set", function() end)
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
+-- Test 50: `unknown = "install"` without a registered `spec` raises a clear
+--          error instead of silently doing nothing
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "install"
+
+local key_handler50
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>nm" then key_handler50 = handler end
+end)
+local real_cmd50 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E919: Directory not found in 'packpath': \"pack/*/opt/no-spec\"")
+end)
+
+autopack.setup({
+	{
+		name = "no-spec",
+		nmaps = { "<leader>nm" },
+	},
+})
+
+local ok50, err50 = pcall(key_handler50)
+tap.ok(not ok50, "unknown=install: without a registered `spec`, triggering load raises an error")
+tap.ok(err50 ~= nil and err50:find("no `spec`", 1, true) ~= nil,
+	"unknown=install: error message explains no spec was registered")
+
+mock_set(vim, "cmd", real_cmd50)
+mock_set(vim.keymap, "set", function() end)
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
+-- Test 51: setup() rejects an invalid `unknown` value
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+
+local ok51, err51 = pcall(autopack.setup, {
+	unknown = "explode",
+	{ name = "whatever" },
+})
+
+tap.ok(not ok51, "setup() rejects an invalid `unknown` value")
+tap.ok(err51 ~= nil and err51:find("unknown", 1, true) ~= nil,
+	"setup() error message mentions `unknown`")
+
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
+-- Test 52: a non-E919 packadd failure (a real bug in the plugin) is
+--          rethrown unchanged, regardless of `unknown`
+-- ---------------------------------------------------------------------------
+
+reset_mocks()
+autopack._registry = {}
+autopack._loaders = {}
+autopack._unknown = "ignore"
+
+local key_handler52
+mock_set(vim.keymap, "set", function(mode, lhs, handler)
+	if lhs == "<leader>nb" then key_handler52 = handler end
+end)
+local real_cmd52 = vim.cmd
+mock_set(vim, "cmd", function(c)
+	error("Vim(packadd):E484: Can't open file plugin/broken.vim")
+end)
+
+autopack.setup({
+	{
+		name = "broken-plugin",
+		nmaps = { "<leader>nb" },
+	},
+})
+
+local ok52, err52 = pcall(key_handler52)
+tap.ok(not ok52, "a non-E919 packadd failure is not swallowed even when `unknown` is set")
+tap.ok(err52 ~= nil and err52:find("E484", 1, true) ~= nil,
+	"the original error from a broken plugin's own files is preserved")
+
+mock_set(vim, "cmd", real_cmd52)
+mock_set(vim.keymap, "set", function() end)
+autopack._unknown = "error"
+
+-- ---------------------------------------------------------------------------
 -- Done
 -- ---------------------------------------------------------------------------
 

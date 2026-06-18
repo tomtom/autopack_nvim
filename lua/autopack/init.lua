@@ -13,6 +13,11 @@ M._loaders = {}
 -- Global trace switch, set via require("autopack").setup({ debug = true, ... }).
 M._debug = false
 
+-- Global "plugin isn't installed" switch, set via
+-- require("autopack").setup({ unknown = "warn", ... }). One of "error"
+-- (default), "warn", "install", "ignore".
+M._unknown = "error"
+
 -- ---------------------------------------------------------------------------
 -- helpers
 -- ---------------------------------------------------------------------------
@@ -115,13 +120,16 @@ local MAP_FIELDS = {
 -- ---------------------------------------------------------------------------
 
 -- :packadd + `init` hook, run at most once no matter which module triggers it.
+-- Returns true once the plugin is loaded and reachable, false if loading was
+-- skipped because the plugin isn't installed and `unknown` is "warn" or
+-- "ignore". Raises an error when `unknown` is "error" (the default) or
+-- "install" without a registered `spec`.
 local function make_pack_loader(name, init)
 	local loaded = false
 	return function()
 		if loaded then
-			return
+			return true
 		end
-		loaded = true
 
 		trace(name, "ensuring plugin '" .. name .. "' is loaded (:packadd)")
 
@@ -133,7 +141,39 @@ local function make_pack_loader(name, init)
 
 		-- Sources the plugin's plugin/ files; enough for an old Vimscript
 		-- plugin to define its commands/maps. No require() here.
-		vim.cmd("packadd " .. name)
+		local ok, err = pcall(vim.cmd, "packadd " .. name)
+		if ok then
+			loaded = true
+			return true
+		end
+
+		-- E919: Directory not found in 'packpath' -- the plugin isn't
+		-- installed. Any other failure is a real bug in the plugin's own
+		-- code and must not be swallowed.
+		if not err:find("E919", 1, true) then
+			error(err)
+		end
+
+		if M._unknown == "ignore" then
+			trace(name, "plugin '" .. name .. "' is not installed; ignoring (unknown=ignore)")
+			return false
+		elseif M._unknown == "warn" then
+			vim.notify("autopack: plugin '" .. name .. "' is not installed", vim.log.levels.WARN)
+			return false
+		elseif M._unknown == "install" then
+			local spec = M._registry[name]
+			assert(spec, "autopack: cannot install '" .. name .. "': no `spec` was registered for it")
+			trace(name, "installing plugin '" .. name .. "' (unknown=install)")
+			vim.pack.add({ spec })
+			loaded = true
+			return true
+		else
+			error(string.format(
+				"autopack: plugin '%s' is not installed.\n"
+					.. "Run :Autopackupdate, or set `unknown` to 'warn'/'install'/'ignore' in setup().\n%s",
+				name, err
+			))
+		end
 	end
 end
 
@@ -183,7 +223,11 @@ local function make_module_loader(name, module_key, mod, ensure_pack_loaded, mod
 
 		-- (5)+(6) Ensure the plugin itself is installed (shared across modules).
 		-- ensure_pack_loaded() traces its own one-shot :packadd internally.
-		ensure_pack_loaded()
+		-- Returns false if the plugin isn't installed and `unknown` is
+		-- "warn"/"ignore": nothing to require()/setup()/replay in that case.
+		if not ensure_pack_loaded() then
+			return
+		end
 
 		-- (7) Optional post-load setup:
 		--       setup = function -> called with the required module (or nil if
@@ -436,12 +480,21 @@ local function register(opts)
 	return opts
 end
 
--- Register one or more plugins. {specs} is a list of plugin specs, plus an
--- optional `debug` field (sibling of the list entries) to trace every
--- plugin's load lifecycle.
+-- Register one or more plugins. {specs} is a list of plugin specs, plus
+-- optional `debug` and `unknown` fields (siblings of the list entries):
+-- `debug` traces every plugin's load lifecycle, `unknown` controls what
+-- happens when a plugin's :packadd fails because it isn't installed.
 function M.setup(specs)
 	if specs.debug ~= nil then
 		M._debug = specs.debug
+	end
+	if specs.unknown ~= nil then
+		assert(
+			specs.unknown == "error" or specs.unknown == "warn"
+				or specs.unknown == "install" or specs.unknown == "ignore",
+			"autopack.setup: `unknown` must be one of 'error', 'warn', 'install', 'ignore'"
+		)
+		M._unknown = specs.unknown
 	end
 	local results = {}
 	for _, opts in ipairs(specs) do
