@@ -1,4 +1,6 @@
 .agents/
+.claude/
+.editorconfig
 AGENTS.md
 tags
 
